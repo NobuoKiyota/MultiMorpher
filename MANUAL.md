@@ -32,16 +32,18 @@ Controls for synthesis and main actions.
 - **Speed (Hz)**: Speed of the automation.
 
 #### Main Actions
-- **Auto Apply**: If checked, clicking MORPH automatically runs APPLY FX too.
-- **1. MORPH** `[Key: 1]`: Synthesizes the base audio from sources.
-- **2. APPLY FX** `[Key: 2]`: Applies effects (Pitch, Formant, Reverb, etc) to the morphed audio.
-- **0. CHAOS** `[Key: 0]`: Randomizes ALL parameters and positions. Great for inspiration!
-- **4. SNAPSHOT** `[Key: 4]`: Instantly saves the current sound to "Snapshots" folder.
+- **Auto Morph**: Enables real-time morphing while dragging the pad (high CPU usage). Shows trajectory animation.
+- **Auto Apply**: Automatically applies effects when using the editor sliders.
+- **MORPH** `[Key: G]`: Synthesizes the base audio from sources.
+- **APPLY FX** `[Key: H]`: Applies effects (Pitch, Formant, Reverb, etc) to the morphed audio.
+- **CHAOS** `[Key: ?]`: Randomizes ALL parameters and positions. Great for inspiration!
+- **SNAPSHOT** `[Key: S]`: Instantly saves the current sound to "Snapshots" folder.
 - **PLAY** `[Key: Space]`: Preview Play/Stop.
-- **SAVE WAV**: Save with a custom filename.
+- **SAVE WAV** `[Key: Ctrl+S]`: Save with a custom filename.
 
 ### 3. EDITOR (Center)
 Accordion menu for fine-tuning sound.
+*Tip: You can use the Mouse Wheel on sliders for fine adjustments.*
 
 #### PITCH CURVE
 - Draw the pitch envelope over time.
@@ -73,8 +75,15 @@ Accordion menu for fine-tuning sound.
 Automatically generate variations. Useful for game assets (e.g., "I need 100 variations of this monster attack").
 
 1. **Min - Max**: Set the random range for each parameter.
+    - **Extended Range**: Morph X/Y ranges (normally 0.0-1.0) can be set to **-1.0 to 2.0** to allow "Extrapolation". This creates unique, exaggerated, or "subtractive" blending effects.
 2. **Output Directory**: Choose where to save files.
 3. **Run Batch**: Generate the specified number of files.
+
+### 5. LEVEL METER (Right Edge)
+Displays real-time audio levels.
+- **Bars**: Current volume (Logarithmic scale). Green -> Yellow -> Red.
+- **Peak dB**: Instantaneous peak volume in decibels.
+- **LUFS**: Approximate loudness (integrated).
 
 ---
 
