@@ -1,103 +1,89 @@
-# Animal Voice Morpher Ultimate - 取扱説明書 📖
+# MultiMorpher - User Manual
 
-Animal Voice Morpher Ultimate (AVMU) は、複数の動物の声をモーフィングし、クリーチャーボイスを作成するためのプロフェッショナルツールです。
-直感的なGUIと高度なランダム生成機能により、世界に一つだけのモンスターボイスを生成できます。
+## 🦁 Introduction
+Welcome to **MultiMorpher**!
+This application is a powerful tool designed to "morph" (blend) multiple voices or sound effects and process them through an advanced effects chain. Create unknown monster voices, creatures, or unique sound design assets with ease.
 
-![Overview](img/gui_overview.png)
+## 🖥 Interface & Features
 
----
+### 1. EXPLORER (Top Left)
+The file browser.
+- **List**: Shows folders and audio files (.wav, .mp3, etc).
+- **Pin Current**: Save the current directory to favorites.
+- **Favorites List**: Click 'x' to remove a pin.
+- **Load Menu**: Right-click a file to load it into slot A, B, C, or D.
 
-## 1. 起動方法
-フォルダ内の **`launcher.bat`** をダブルクリックして起動します。
+### 2. SOURCES & CONTROLS (Bottom Left)
+Controls for synthesis and main actions.
 
----
+#### Source Loading
+- **Load A (Master)**: The primary sound. Determines the duration basis for pitch curves.
+- **Load B, C, D**: Secondary sounds to blend in.
+- *Tips: You can also Drag & Drop files onto the buttons.*
 
-## 2. 画面構成と使い方
+#### MORPH PAD
+- Drag the handle on the X-Y pad to blend the 4 voices (A, B, C, D).
+- **MOTION**: Automate the handle movement.
+    - `Static`: No movement.
+    - `RandomPoint`: Pick a random spot each time.
+    - `Circle/Eight`: Move in shapes.
+    - `Scan`: Linear scan.
+    - `RandomMovement`: Wanders randomly.
+- **Speed (Hz)**: Speed of the automation.
 
-画面は大きく分けて4つのセクション（カラム）で構成されています。
+#### Main Actions
+- **Auto Apply**: If checked, clicking MORPH automatically runs APPLY FX too.
+- **1. MORPH** `[Key: 1]`: Synthesizes the base audio from sources.
+- **2. APPLY FX** `[Key: 2]`: Applies effects (Pitch, Formant, Reverb, etc) to the morphed audio.
+- **0. CHAOS** `[Key: 0]`: Randomizes ALL parameters and positions. Great for inspiration!
+- **4. SNAPSHOT** `[Key: 4]`: Instantly saves the current sound to "Snapshots" folder.
+- **PLAY** `[Key: Space]`: Preview Play/Stop.
+- **SAVE WAV**: Save with a custom filename.
 
-### ① EXPLORER (左端) - 素材管理
-PC内の音声ファイルを素早く探し、読み込むためのエリアです。
+### 3. EDITOR (Center)
+Accordion menu for fine-tuning sound.
 
-![Explorer](img/explorer.png)
+#### PITCH CURVE
+- Draw the pitch envelope over time.
+- **Right-Click**: Delete point.
+- **Left-Click**: Add/Move point.
+- **Range ±**: Adjust the vertical range (semitones). Default is 6. Set to 12 or 24 for extreme shifts.
 
-*   **ドライブ選択**: 一番上のプルダウンメニューでドライブ（C:, D:など）を切り替えます。
-*   **ファイルリスト**:
-    *   **フォルダ (📁)**: ダブルクリックで中に入ります。
-    *   **音声ファイル (🎵)**:
-        *   **左クリック**: 「Auto」がONの場合、自動再生（プレビュー）します。OFFの場合は選択のみ。
-        *   **右クリック**: 「Load into Source A～D」メニューから、各スロットへ直接読み込みます。
-        *   **ドラッグ&ドロップ**: Sourceボタンへ直接ドラッグして読み込めます。
-*   **Auto (チェックボックス)**: ONにすると、ファイル選択時に自動再生します。ドラッグ操作を連続で行う場合はOFFがおすすめです。
-*   **Control Panel**:
-    *   **■**: 再生中のプレビューを停止します。
-    *   **ボリューム**: プレビューの音量を調整します。
-*   **Pin Current**: 現在のフォルダを「Quick Access」としてピン留めします（よく使う素材フォルダに便利です）。リスト右の「x」で削除できます。
+#### CORE EFFECTS
+- **Formant**: Throat size/Timbre. Low = Giant/Male, High = Child/Female.
+- **Breath**: Adds noise/breathiness.
+- **Speed**: Overall playback speed.
+- **Volume**: Output level.
 
-### ② SOURCES & MOTION (左中) - ソースと動き
-*   **Source Loaders**:
-    *   **Load A (Master)**: メインとなるベース音声。必ず設定してください。
-    *   **Load B / C / D**: 混ぜ合わせる他の音声。
-*   **MORPH PAD**:
-    *   **A/B/C/D**: 四隅がそれぞれのソースに対応します。
-    *   **青いハンドル**: ドラッグしてブレンド比率を調整します。
-*   **MOTION**:
-    *   **Static**: 固定ブレンド。
-    *   **Circle / Eight / Scan / Random**: 自動的にハンドルが動き回り、時間経過で音が変化します。
-    *   **Speed (Hz)**: 動きの速さを調整します。
+#### MODULATION & TONE
+- **Growl**: Adds a rough, rattling texture (Amplitude Modulation).
+- **Tone**: Brightness/Tilt filter.
+- **Ring Mix/Freq**: Robotic/Metallic sound (Ring Modulator).
 
-### ③ EDITOR (中央) - 編集と加工
-モーフィングされた音声をさらに加工します。
+#### SPACE & TIME
+- **Spacer**: Stereo width enhancement.
+- **Reverb**: Room ambience.
+- **Delay**: Echo (Time, Feedback, Mix).
 
-*   **Pitch Curve (グラフ)**:
-    *   **左クリック**: ポイントを追加。
-    *   **ドラッグ**: カーブを調整して、イントネーション（抑揚）を作ります。
-    *   **右クリック**: ポイントを削除。
-    *   **Reset Pitch**: 初期状態に戻します。
-*   **EFFECTS**:
-    *   **Breath**: ノイズ成分を強調し、掠れ声や息遣いを追加。
-    *   **Formant**: 声道のサイズを変更。「巨人」や「小人」のような声質変化。
-    *   **Growl**: 音を震わせて「唸り」を加えます。
-    *   **Speed**: ピッチを変えずに再生速度を変更。
-    *   **Distortion**: 歪みを加えて凶暴さを演出。
-    *   **Tone**: 低音/高音のバランス調整。
-*   **Actions**:
-    1.  **MORPH**: 現在の設定で音声を合成（ベース生成）。
-    2.  **APPLY FX**: エフェクトとピッチカーブを適用。
-    3.  **PLAY**: 結果を再生。
-    4.  **SAVE**: ファイルに保存。
+#### LO-FI / DIST
+- **Distortion**: Overdrive/Clipping.
+- **Bit Depth / SR Divider**: Digital degradation (Bitcrushing).
 
-### ④ BATCH FACTORY (右端) - 量産
-設定したパラメータを基準に、ランダムなバリエーションを大量生成します。
+### 4. BATCH FACTORY (Right)
+Automatically generate variations. Useful for game assets (e.g., "I need 100 variations of this monster attack").
 
-*   **Output Config**:
-    *   **Count**: 生成するファイル数。
-    *   **Prefix**: ファイル名の接頭辞（例: `Monster` -> `Monster_001.wav`）。
-    *   **Output Directory**: 保存先。`📂 Open` ボタンでフォルダを開けます。
-*   **RANDOM RANGES**:
-    *   各項目のチェックを入れると、そのパラメータがランダムに変化します。
-    *   右のスライダーで「変動幅（Variance）」を指定します。
-*   **RUN BATCH**: 自動生成を開始します。完了までお待ちください。
+1. **Min - Max**: Set the random range for each parameter.
+2. **Output Directory**: Choose where to save files.
+3. **Run Batch**: Generate the specified number of files.
 
 ---
 
-## 3. おすすめレシピ
-
-### 🦖 巨大怪獣
-*   **Motion**: Static (またはゆっくりしたCircle)
-*   **Speed**: 0.7 (遅く)
-*   **Formant**: 0.8 (声を大きく)
-*   **Distortion**: 0.4
-*   **Pitch**: 山なりのカーブで「ルゥォォォォン」という咆哮を表現
-
-### 👻 ゴースト / 精霊
-*   **Source**: ベルや風の音を混ぜる
-*   **Breath**: 0.8 (ノイズ多め)
-*   **Formant**: 1.5 (声を小さく・細く)
-*   **Tone**: -0.5 (高域カット)
-
-### 👾 エイリアン群集 (Batch利用)
-1.  Source A-Dに適当な声をセット
-2.  **Motion**: Random
-3.  Batch Factoryで **Motion X/Y**, **Speed**, **Formant** のランダムをON
-4.  50個ほど一気に生成！
+## ⌨️ Shortcuts
+| Key | Action |
+| :--- | :--- |
+| **G** | Morph (Generate) |
+| **H** | Apply FX (Effects) |
+| **?** | Chaos (Randomize) |
+| **S** | Snapshot (Quick Save) |
+| **Ctrl+S** | Save WAV |
+| **Space** | Play / Stop |

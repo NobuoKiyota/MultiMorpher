@@ -18,6 +18,10 @@ last_state.json
 favs.json
 keybindings.json
 Settings/
+Snapshots/
+wav/
+*.wav
+!prev.wav
 
 # Logs
 *.log
