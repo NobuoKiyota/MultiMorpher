@@ -1,0 +1,11 @@
+customtkinter
+librosa>=0.10.0
+numpy<2.0
+soundfile
+pygame
+scipy
+packaging
+numba
+matplotlib
+pyworld
+tkinterdnd2

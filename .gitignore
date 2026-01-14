@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+
+# Distribution / Installer
+dist/
+build/
+*.spec
+
+# Application Specific
+prev.wav
+last_state.json
+favs.json
+keybindings.json
+Settings/
+
+# Logs
+*.log
