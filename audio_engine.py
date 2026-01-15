@@ -8,7 +8,7 @@ from scipy.interpolate import PchipInterpolator
 
 class AudioEngine:
     def __init__(self):
-        self.sr = 44100
+        self.sr = 48000
         self.frame_period = 5.0
         
         # Raw Data
@@ -517,15 +517,37 @@ class AudioEngine:
                 y = scipy.signal.lfilter(b, a, y)
         return y
 
-    def save_output(self, filepath):
+    def save_output(self, filepath, trim=False):
         target = self.processed_audio if self.processed_audio is not None else self.generated_audio
         if target is None: return
-        sf.write(filepath, target, self.sr)
+        
+        if trim:
+             # librosa trim works on (channels, samples) or (samples, )
+             # Our target (stereo) is (samples, 2). Librosa expects mono or (channels, samples).
+             # We should transpose for librosa, then transpose back? 
+             # Or just trim based on Mono mix?
+             
+             # Safest: Transpose to (2, N) for librosa 0.10+ which supports multi-channel?
+             # Actually librosa.effects.trim computes from mono ref. 
+             # Let's just pass (2, N) if possible or manually.
+             
+             target_T = target.T # (2, N)
+             # trim returns (trimmed_data, index_tuple)
+             # But librosa.effects.trim expects audio as first arg. 
+             # It calculates envelope on mono ref.
+             try:
+                 # ref=np.max ensures it looks at max of channels
+                 trimmed_y, _ = librosa.effects.trim(target_T, top_db=40, ref=np.max) 
+                 target = trimmed_y.T # (N_new, 2)
+             except: pass
+             
+        sf.write(filepath, target, self.sr, subtype='PCM_24')
         
     def render_batch_sample(self, filepath, morph_x, morph_y, shape, m_speed, formant, breath, pitch_curve, 
                             speed, growl, tone, dist, 
                             bit_depth, bit_rate_div, ring_freq, ring_mix,
-                            delay_time, delay_fb, delay_mix, reverb_mix, spacer_width, vol):
+                            delay_time, delay_fb, delay_mix, reverb_mix, spacer_width, vol,
+                            trim_silence=False):
         try:
             self.morph(morph_x, morph_y, shape=shape, speed=m_speed, formant_shift=formant, breath=breath)
             self.process_pipeline(pitch_curve, speed=speed, growl=growl, tone=tone, dist=dist,
@@ -533,7 +555,7 @@ class AudioEngine:
                                   ring_freq=ring_freq, ring_mix=ring_mix,
                                   delay_time=delay_time, delay_fb=delay_fb, delay_mix=delay_mix,
                                   reverb_mix=reverb_mix, spacer_width=spacer_width, vol=vol)
-            self.save_output(filepath)
+            self.save_output(filepath, trim=trim_silence)
             return True, "Success"
         except Exception as e:
             return False, str(e)
