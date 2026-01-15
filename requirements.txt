@@ -8,3 +8,6 @@ librosa
 soundfile
 pyworld
 packaging
+transformers
+pandas
+odfpy

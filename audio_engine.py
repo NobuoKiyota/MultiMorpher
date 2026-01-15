@@ -559,3 +559,46 @@ class AudioEngine:
             return True, "Success"
         except Exception as e:
             return False, str(e)
+
+# ==================== CLASSIFIER ====================
+class AudioClassifier:
+    _instance = None
+    _model = None
+    _pipeline = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(AudioClassifier, cls).__new__(cls)
+        return cls._instance
+
+    def load_model(self):
+        if self._pipeline is not None:
+            return
+
+        try:
+            from transformers import pipeline
+            print("Loading Audio Classifier Model... This may take a while on first run.")
+            # Zero-shot audio classification
+            # Using CLAP model as requested
+            self._pipeline = pipeline("zero-shot-audio-classification", model="laion/clap-htsat-unfused")
+            print("Model loaded successfully.")
+        except Exception as e:
+            print(f"Failed to load classification model: {e}")
+            self._pipeline = None
+
+    def classify(self, filepath, candidate_labels):
+        if self._pipeline is None:
+            self.load_model()
+        
+        if self._pipeline is None:
+            return "Unknown"
+
+        try:
+            # Pipeline returns list of dicts: [{'score': 0.9, 'label': 'Monster'}, ...]
+            result = self._pipeline(filepath, candidate_labels=candidate_labels)
+            # Get top 1
+            top_label = result[0]['label']
+            return top_label
+        except Exception as e:
+            print(f"Classification error: {e}")
+            return "Error"
