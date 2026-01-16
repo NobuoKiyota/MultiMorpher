@@ -273,7 +273,7 @@ class LazyBatchGUI(ctk.CTk):
         # Recursive scan
         for root, dirs, files in os.walk(target_folder):
             for f in files:
-                if f.lower().endswith(('.wav', '.mp3', '.flac')):
+                if f.lower().endswith(('.wav', '.mp3', '.flac', '.ogg', '.aiff', '.aif', '.aifc', '.au', '.snd')):
                     full_path = os.path.join(root, f)
                     
                     # 1. Filename
@@ -632,7 +632,7 @@ class LazyBatchGUI(ctk.CTk):
         self.log("Scanning source folders...")
         valid_files = []
         
-        extensions = ['*.wav', '*.mp3', '*.flac', '*.ogg', '*.aiff']
+        extensions = ['*.wav', '*.mp3', '*.flac', '*.ogg', '*.aiff', '*.aif', '*.aifc', '*.au', '*.snd']
         
         for folder in self.source_folders:
             for ext in extensions:
