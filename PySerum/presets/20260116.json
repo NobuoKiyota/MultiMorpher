@@ -1,0 +1,54 @@
+{
+    "osc_a": {
+        "params": {
+            "pos": 0.5631801304910006,
+            "unison": 0.0,
+            "vol": 0.8,
+            "semi": 0
+        },
+        "table_name": "Classic"
+    },
+    "osc_b": {
+        "params": {
+            "pos": 0.0,
+            "unison": 0.0,
+            "vol": 0.0,
+            "semi": 0
+        },
+        "table_name": "Monster"
+    },
+    "filter": {
+        "enabled": false,
+        "cutoff": 20000.0
+    },
+    "lfo": {
+        "rate": 1.0,
+        "shape": "Sine",
+        "mod_cutoff": 0.0,
+        "mod_wt": 0.0
+    },
+    "adsr_amp": {
+        "a": 0.5,
+        "d": 0.5,
+        "s": 0.7,
+        "r": 1.0
+    },
+    "adsr_mod": {
+        "a": 0.01,
+        "d": 0.1,
+        "s": 0.7,
+        "r": 0.5,
+        "amt_cutoff": 0.0,
+        "amt_pitch": 0.0
+    },
+    "fx_dist": {
+        "enabled": false,
+        "drive": 0.0
+    },
+    "fx_delay": {
+        "enabled": false,
+        "time": 0.25,
+        "feedback": 0.4,
+        "mix": 0.3
+    }
+}

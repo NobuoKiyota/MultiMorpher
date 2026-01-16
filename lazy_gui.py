@@ -636,7 +636,9 @@ class LazyBatchGUI(ctk.CTk):
         
         for folder in self.source_folders:
             for ext in extensions:
-                files = glob.glob(os.path.join(folder, ext))
+                # Recursive search (glob ** with recursive=True)
+                pattern = os.path.join(folder, "**", ext)
+                files = glob.glob(pattern, recursive=True)
                 for f in files:
                     if self.stop_event.is_set(): break
                     try:
