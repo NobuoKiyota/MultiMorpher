@@ -275,6 +275,10 @@ class PyQuartzFactory:
             ws.column_dimensions['A'].width = 30
             ws.column_dimensions[get_column_letter(len(row_data))].width = 20 # Date
             
-            wb.save(xlsx_path)
-
-            print(f"[{i+1}/{num_files}] {filename} (Dur:{duration:.2f}s) -> Logged to XLSX")
+            try:
+                wb.save(xlsx_path)
+                print(f"[{i+1}/{num_files}] {filename} (Dur:{duration:.2f}s) -> Logged to XLSX")
+            except PermissionError:
+                print(f"[{i+1}/{num_files}] WARNING: Excel Open! Log skipped for {filename}. Close 'generation_log.xlsx'.")
+            except Exception as e:
+                print(f"[{i+1}/{num_files}] ERROR: Excel save failed: {e}")

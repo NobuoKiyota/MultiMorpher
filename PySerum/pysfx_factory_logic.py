@@ -23,7 +23,7 @@ class GenerationLogic:
         
         # Select a random chord type
         chord_name = random.choice(ChordData.get_chord_names())
-        intervals = ChordData.CHORDS[chord_name]
+        intervals = ChordData.get_random_pattern(chord_name)
         
         notes = []
         for i in range(num_voices):
