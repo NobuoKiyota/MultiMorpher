@@ -22,7 +22,7 @@ class PyQuartzFactory:
     def run_advanced_batch(self, config, num_files=10):
         print(f"--- PyQuartz SFX Factory Production: {num_files} files ---")
         
-        for i in range(num_files):
+        for p_idx in range(num_files):
             # 1. 各種パラメータの決定 (Random設定対応)
             duration = self._get_param_value(config, "Duration")
             root_note = int(self._get_param_value(config, "NoteRange"))
@@ -30,16 +30,31 @@ class PyQuartzFactory:
             strum_ms = self._get_param_value(config, "Strum")
             
             # 2. エンジン内部パラメータの同期
-            # GUI上の 'PitchRange' などをエンジンの 'semi' 等に変換して適用
             engine_updates = {
-                'vol': 0.8, # 必要に応じてGUI項目追加
-                'semi': 0,   # 基本ピッチ
-                'cutoff': 20000, # フィルタ未実装なら固定、あればGUIから取得
+                'vol': self._get_param_value(config, "MasterVolume"), 
+                'osc_type': int(self._get_param_value(config, "SimpleOscType")),
+                'semi': 0, 
+                'cutoff': 20000, 
                 'dist': 0,
                 'filter_en': True,
-                'filter_en': True,
                 'portamento': self._get_param_value(config, "Portament"),
-                'master_pan': self._get_param_value(config, "MasterPan")
+                'master_pan': self._get_param_value(config, "MasterPan"),
+                
+                # --- LFO Params ---
+                'lfo_p_range': self._get_param_value(config, "LFO_P_Range"),
+                'lfo_p_type': int(self._get_param_value(config, "LFO_P_Type")),
+                'lfo_p_speed': self._get_param_value(config, "LFO_P_Speed"),
+                'lfo_p_shape': self._get_param_value(config, "LFO_P_Shape"),
+                
+                'lfo_v_range': self._get_param_value(config, "LFO_V_Range"),
+                'lfo_v_type': int(self._get_param_value(config, "LFO_V_Type")),
+                'lfo_v_speed': self._get_param_value(config, "LFO_V_Speed"),
+                'lfo_v_shape': self._get_param_value(config, "LFO_V_Shape"),
+                
+                'lfo_pan_range': self._get_param_value(config, "LFO_Pan_Range"),
+                'lfo_pan_type': int(self._get_param_value(config, "LFO_Pan_Type")),
+                'lfo_pan_speed': self._get_param_value(config, "LFO_Pan_Speed"),
+                'lfo_pan_shape': self._get_param_value(config, "LFO_Pan_Shape"),
             }
             self.engine.update_params(engine_updates)
             
@@ -47,9 +62,7 @@ class PyQuartzFactory:
             pitch_range_cents = self._get_param_value(config, "PitchRange")
             if pitch_range_cents != 0:
                 pitch_curve = int(self._get_param_value(config, "PitchCurve"))
-                # Using 16 points for smooth envelope
                 points = GenerationLogic.get_pitch_curve(pitch_range_cents, 16)
-                # Scale points to Semitones
                 range_semis = pitch_range_cents / 100.0
                 scaled_points = [(t, v * range_semis) for t, v in points]
                 from pysfx_dsp import AutomationLane
@@ -87,11 +100,6 @@ class PyQuartzFactory:
             audio_buffer = []
             current_sample_global = 0
             
-            # Keep track of active notes to turn them off later
-            # Actually engine handles note_off by note number. 
-            # If we limit voices (polyphony), detunes might steal.
-            # We increased voices to 64.
-            
             for b in range(total_hold_blocks):
                 block_start = current_sample_global
                 for idx, n in enumerate(notes):
@@ -109,11 +117,8 @@ class PyQuartzFactory:
                         if detune_count > 0:
                             det_vol = velocity * detune_vol_ratio
                             for _ in range(detune_count):
-                                # Detune spread +/- range
                                 d_cent = random.uniform(-detune_range_cents, detune_range_cents)
                                 d_semi = d_cent / 100.0
-                                
-                                # Detune Voices also get Pan (Random if Pan is Random)
                                 d_pan = self._get_param_value(config, "Pan")
                                 self.engine.note_on(n, velocity=det_vol, detune=d_semi, pan=d_pan)
 
@@ -121,54 +126,114 @@ class PyQuartzFactory:
                 audio_buffer.append(raw_data)
                 current_sample_global += BLOCK_SIZE
             
-            # Phase 2: Release (Note Off & Tail)
-            # Since multiple voices share the same note number (detunes),
-            # engine.note_off(n) iterates ALL voices and releases ANY with matching note number.
-            # So one call per note n is enough to kill main + all detunes for that note.
+            # Phase 2: Release & Tail Generation
             for n in notes: self.engine.note_off(n)
             
-            # リリース時間を計算 
-            # 余裕を見て 1.5倍し、無音検知で早期終了
-            release_sec = r 
-            max_tail_blocks = int(np.ceil((release_sec * 3.0 * SR) / BLOCK_SIZE)) + 10 # 3倍 + margin
+            # --- Smart Tail Logic ---
+            # Generate enough silence to capture Reverb/Delay tails.
+            # User requested ~5s timeout.
+            # We generate dry silence, which FX chain will fill with tails.
             
-            silence_thresh = 1e-5
+            tail_sec = 5.0 
+            max_tail_blocks = int(tail_sec * SR / BLOCK_SIZE)
             
-            for b in range(max_tail_blocks):
+            # We just generate the full buffer. Trimming happens POST-FX.
+            # Premature optimization (breaking on dry silence) kills Reverb tails.
+            
+            for b_tail in range(max_tail_blocks):
                 raw_data = self.engine.generate_block()
                 audio_buffer.append(raw_data)
-                
-                # Check silence (Peak of block)
-                if np.max(np.abs(raw_data)) < silence_thresh:
-                    # Ensure minimal tail length? No, silence is silence.
-                    break
+
             
             # 6. 保存と後処理
             full_audio = np.concatenate(audio_buffer)
-            
-            # Normalize Logic
-            do_normalize = config["Normalize"]["value"]
-            peak = np.max(np.abs(full_audio))
-            
-            if do_normalize and peak > 0:
-                full_audio = (full_audio / peak) * 0.95
-            elif peak > 1.0: # Clip protection even if not normalizing
-                full_audio = (full_audio / peak) * 0.99
-            
-            timestamp = datetime.datetime.now().strftime("%H%M%S%f")[:7]
-            
-            # Formatting Filename: Quartz_Cn3_Maj7_Timestamp.wav
-            note_str = GenerationLogic.get_note_name(root_note)
-            filename = f"Quartz_{note_str}_{chord_name}_{timestamp}.wav"
-            filepath = os.path.join(self.out_dir, filename)
-            
+
             # Reshape Interleaved (..., 2) for Stereo
-            # Engine returns interleaved flat array
             if len(full_audio) % 2 != 0:
-                # Should not happen with block size, but safer to trim
                 full_audio = full_audio[:len(full_audio)-1]
             
             stereo_audio = full_audio.reshape(-1, 2)
+            
+            # --- POST-PROCESSING FX CHAIN ---
+            from pysfx_effects import EffectsProcessor
+            
+            # 1. Distortion
+            dist_gain = self._get_param_value(config, "DistortionGain")
+            dist_tone = self._get_param_value(config, "DistortionFeed")
+            dist_wet = self._get_param_value(config, "DistortionWet")
+            if dist_wet > 0:
+                stereo_audio[:, 0] = EffectsProcessor.apply_distortion(stereo_audio[:, 0], dist_gain, dist_tone, dist_wet)
+                stereo_audio[:, 1] = EffectsProcessor.apply_distortion(stereo_audio[:, 1], dist_gain, dist_tone, dist_wet)
+
+            # 2. Phaser
+            ph_depth = self._get_param_value(config, "PhaserDepth")
+            ph_speed = self._get_param_value(config, "PhaserSpeed")
+            ph_wet = self._get_param_value(config, "PhaserWet")
+            if ph_wet > 0:
+                stereo_audio[:, 0] = EffectsProcessor.apply_phaser(stereo_audio[:, 0], ph_depth, ph_speed, ph_wet)
+                stereo_audio[:, 1] = EffectsProcessor.apply_phaser(stereo_audio[:, 1], ph_depth, ph_speed, ph_wet)
+
+            # 3. Delay
+            dly_time = self._get_param_value(config, "DelayTime")
+            dly_fb = self._get_param_value(config, "DelayFeedback")
+            dly_wet = self._get_param_value(config, "DelayWet")
+            if dly_wet > 0:
+                stereo_audio[:, 0] = EffectsProcessor.apply_delay(stereo_audio[:, 0], dly_time, dly_fb, dly_wet)
+                stereo_audio[:, 1] = EffectsProcessor.apply_delay(stereo_audio[:, 1], dly_time, dly_fb, dly_wet)
+
+            # 4. Reverb
+            rv_time = self._get_param_value(config, "ReverbTime")
+            rv_spread = self._get_param_value(config, "ReverbSpread")
+            rv_wet = self._get_param_value(config, "ReverbWet")
+            if rv_wet > 0:
+                stereo_audio[:, 0] = EffectsProcessor.apply_reverb(stereo_audio[:, 0], rv_time, rv_spread, rv_wet)
+                stereo_audio[:, 1] = EffectsProcessor.apply_reverb(stereo_audio[:, 1], rv_time, rv_spread, rv_wet)
+                
+            # 5. Spread
+            sp_range = self._get_param_value(config, "SpreadRange")
+            sp_density = self._get_param_value(config, "SpreadDensity")
+            sp_wet = self._get_param_value(config, "SpreadWet")
+
+            # --- Smart Silence Trimming (Backward) ---
+            # Trim trailing silence down to the actual signal end.
+            # Threshold: 1e-5 (-100dB)
+            trim_thresh = 1e-5
+            
+            # Check magnitude (Mono Sum or Max)
+            mag = np.abs(stereo_audio)
+            is_loud = np.max(mag, axis=1) > trim_thresh
+            
+            if np.any(is_loud):
+                # Find last index where signal exists
+                last_idx = np.where(is_loud)[0][-1]
+                
+                # Add tiny buffer (e.g. 100ms) for fade out safety? 
+                # User said "Trim that 500ms" of silence. 
+                # If we detected 500ms of silence, we cut it.
+                # Here we just cut *all* silence after last signal.
+                # Let's add 100ms safety to avoid sharp cuts on Reverb tails.
+                safety_samples = int(0.1 * SR)
+                cut_point = min(len(stereo_audio), last_idx + safety_samples)
+                
+                stereo_audio = stereo_audio[:cut_point]
+            else:
+                # All silence?
+                pass
+
+            # Flatten for Normalize logic need Update?
+            do_normalize = config["Normalize"]["value"]
+            peak = np.max(np.abs(stereo_audio))
+            
+            if do_normalize and peak > 0:
+                stereo_audio = (stereo_audio / peak) * 0.95
+            elif peak > 1.0: 
+                stereo_audio = (stereo_audio / peak) * 0.99
+            
+            timestamp = datetime.datetime.now().strftime("%H%M%S%f")[:7]
+            
+            note_str = GenerationLogic.get_note_name(root_note)
+            filename = f"Quartz_{note_str}_{chord_name}_{timestamp}.wav"
+            filepath = os.path.join(self.out_dir, filename)
             
             scipy.io.wavfile.write(filepath, SR, stereo_audio.astype(np.float32))
             
@@ -181,7 +246,6 @@ class PyQuartzFactory:
             
             xlsx_path = os.path.join(self.out_dir, "generation_log.xlsx")
             
-            # --- Load or Create Workbook ---
             if os.path.exists(xlsx_path):
                 wb = openpyxl.load_workbook(xlsx_path)
                 ws = wb.active
@@ -189,41 +253,25 @@ class PyQuartzFactory:
                 wb = openpyxl.Workbook()
                 ws = wb.active
                 ws.title = "Generation Log"
-                
-                # --- Create Headers ---
                 headers = ["File Name"] + [p.name for p in PySFXParams.get_sorted_params()] + ["Date"]
                 ws.append(headers)
             
-            # --- Styling Constants ---
-            thin_border = Border(left=Side(style='thin'), 
-                                 right=Side(style='thin'), 
-                                 top=Side(style='thin'), 
-                                 bottom=Side(style='thin'))
-                                 
-            # --- Update Header Styles (Always, to fix existing) ---
+            thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             sorted_params = PySFXParams.get_sorted_params()
             header_row = ws[1]
-            
-            # 1. File Name Header
-            header_row[0].alignment = Alignment(horizontal='center', vertical='bottom', text_rotation=0) # No rotation for File Name? 
-            # User said: "1行目をカラムとして文字角度を70度" - implies all columns? 
-            # Usually File Name is long, better flat? Or rotated too? Let's rotate all for consistency as requested.
+            header_row[0].alignment = Alignment(horizontal='center', vertical='bottom', text_rotation=0) 
             for cell in header_row:
                  cell.alignment = Alignment(text_rotation=70, horizontal='center', vertical='bottom')
                  cell.font = Font(bold=True)
                  cell.border = thin_border
                  
-            # 2. Color Headers (Cols 2..N) based on Group
-            # Col 1: File Name (No Group Color or specific?)
-            # Col 2..N: Params
-            for i, p in enumerate(sorted_params):
-                col_idx = i + 2
+            for idx_p, p in enumerate(sorted_params):
+                col_idx = idx_p + 2
                 cell = ws.cell(row=1, column=col_idx)
                 hex_color = PySFXColors.get_excel_color(p.group)
                 if hex_color:
                     cell.fill = PatternFill(start_color=hex_color, end_color=hex_color, fill_type="solid")
             
-            # --- Prepare Data ---
             used_params = {
                 "Duration": duration,
                 "NoteRange": root_note,
@@ -244,11 +292,37 @@ class PyQuartzFactory:
                 "MultiVoiceVolume": vol_multi,
                 "DetuneVoice": detune_count,
                 "DetuneRange": detune_range_cents,
-                "DetuneVolume": detune_vol_ratio
+                "DetuneVolume": detune_vol_ratio,
+                "LFO_P_Range": engine_updates['lfo_p_range'],
+                "LFO_P_Type": engine_updates['lfo_p_type'],
+                "LFO_P_Speed": engine_updates['lfo_p_speed'],
+                "LFO_P_Shape": engine_updates['lfo_p_shape'],
+                "LFO_V_Range": engine_updates['lfo_v_range'],
+                "LFO_V_Type": engine_updates['lfo_v_type'],
+                "LFO_V_Speed": engine_updates['lfo_v_speed'],
+                "LFO_V_Shape": engine_updates['lfo_v_shape'],
+                "LFO_Pan_Range": engine_updates['lfo_pan_range'],
+                "LFO_Pan_Type": engine_updates['lfo_pan_type'],
+                "LFO_Pan_Speed": engine_updates['lfo_pan_speed'],
+                "LFO_Pan_Shape": engine_updates['lfo_pan_shape'],
+                "DistortionGain": dist_gain,
+                "DistortionFeed": dist_tone,
+                "DistortionWet": dist_wet,
+                "PhaserDepth": ph_depth,
+                "PhaserSpeed": ph_speed,
+                "PhaserWet": ph_wet,
+                "ReverbTime": rv_time,
+                "ReverbSpread": rv_spread,
+                "ReverbWet": rv_wet,
+                "DelayTime": dly_time,
+                "DelayFeedback": dly_fb,
+                "DelayWet": dly_wet,
+                "SpreadRange": sp_range,
+                "SpreadDensity": sp_density,
+                "SpreadWet": sp_wet,
             }
 
             row_data = [filename]
-            
             for p in sorted_params:
                 val = used_params.get(p.name, "")
                 if isinstance(val, (float, np.floating)) and isinstance(val, (int, float)):
@@ -256,29 +330,21 @@ class PyQuartzFactory:
                 row_data.append(val)
                 
             row_data.append(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            
-            # --- Append Row ---
             ws.append(row_data)
             current_row = ws.max_row
-            
-            # --- Apply Borders (Grid) to Data Row ---
-            # And NO Color
             for cell in ws[current_row]:
                 cell.border = thin_border
                 cell.alignment = Alignment(horizontal='center')
             
-            # --- Freezing & Filtering ---
-            ws.freeze_panes = "B2" # Freeze Row 1 and Column A (File Name)
-            ws.auto_filter.ref = ws.dimensions # Enable Autofilter for full range
-            
-            # Auto-fit Column A width
+            ws.freeze_panes = "B2"
+            ws.auto_filter.ref = ws.dimensions
             ws.column_dimensions['A'].width = 30
-            ws.column_dimensions[get_column_letter(len(row_data))].width = 20 # Date
+            ws.column_dimensions[get_column_letter(len(row_data))].width = 20
             
             try:
                 wb.save(xlsx_path)
-                print(f"[{i+1}/{num_files}] {filename} (Dur:{duration:.2f}s) -> Logged to XLSX")
+                print(f"[{p_idx+1}/{num_files}] {filename} (Dur:{duration:.2f}s) -> Logged to XLSX")
             except PermissionError:
-                print(f"[{i+1}/{num_files}] WARNING: Excel Open! Log skipped for {filename}. Close 'generation_log.xlsx'.")
+                print(f"[{p_idx+1}/{num_files}] WARNING: Excel Open! Log skipped. Close 'generation_log.xlsx'.")
             except Exception as e:
-                print(f"[{i+1}/{num_files}] ERROR: Excel save failed: {e}")
+                print(f"[{p_idx+1}/{num_files}] ERROR: Excel: {e}")

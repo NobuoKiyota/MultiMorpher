@@ -11,11 +11,11 @@ class GenerationLogic:
         """
         from pysfx_chord_data import ChordData
         
+        if isinstance(root_note, list) or isinstance(root_note, tuple):
+             if len(root_note) > 0: root_note = root_note[0]
+        root_note = int(root_note)
+
         if not is_chord_mode or num_voices <= 1: 
-            # Non-chord mode: Unison or slight detune clusters if manually forced
-            # But usually just Root.
-            # Let's return Root + Random 
-            # Or just Root if num_voices=1
             if num_voices == 1:
                 return [root_note], "Single"
             else:
@@ -25,11 +25,20 @@ class GenerationLogic:
         chord_name = random.choice(ChordData.get_chord_names())
         intervals = ChordData.get_random_pattern(chord_name)
         
+        # Safety check for intervals structure
+        if intervals and isinstance(intervals[0], list):
+             intervals = intervals[0]
+             
         notes = []
         for i in range(num_voices):
-            # Wrap around available intervals
-            # e.g. Voices=4, Chord=Maj(0,4,7). -> 0,4,7, 12(0+12)
             interval = intervals[i % len(intervals)]
+            
+            # Double safety: verify interval is int
+            if isinstance(interval, list):
+                interval = interval[0] 
+            
+            interval = int(interval)
+            
             octave_offset = (i // len(intervals)) * 12
             notes.append(root_note + interval + octave_offset)
             

@@ -5,21 +5,36 @@ class PySFXColors:
     BG_BASE = (20, 20, 20) 
 
     GROUP_RGBA = {
+        # Basic Numeric Groups
         1: (100, 100, 100, 40),   # Grey
         2: (255, 50, 50, 30),     # Red
         3: (255, 150, 50, 30),    # Orange
         4: (50, 255, 50, 25),     # Green
         5: (50, 255, 255, 25),    # Cyan
         6: (50, 100, 255, 30),    # Blue
-        7: (255, 50, 255, 30),    # Magenta
-        # Add more as needed
+        7: (220, 50, 220, 30),    # LFO-Pitch (Magenta)
+        8: (100, 255, 50, 30),    # LFO-Vol (Lime)
+        9: (255, 80, 120, 30),    # LFO-Pan (Pink)
+        10: (50, 50, 255, 80),    # Blue2
+        
+        # New Named Groups (Page 3/4)
+        "Distortion": (200, 50, 0, 40),   # Burnt Orange
+        "Phaser": (100, 0, 200, 40),      # Purple
+        "Reverb": (0, 150, 255, 40),      # Sky Blue
+        "Delay": (0, 200, 150, 40),       # Teal
+        "Spread": (255, 100, 150, 40),    # Rose
+        
+        "Envelope": (255, 200, 0, 30),    # Yellow
+        "Pitch": (50, 255, 50, 25),       # Green
+        "Stereo": (0, 255, 255, 25)       # Cyan
     }
     
     @classmethod
     def get_color(cls, group_id):
         if group_id is None or group_id == 0: return "transparent"
         
-        rgba = cls.GROUP_RGBA.get(group_id, (128, 128, 128, 20)) # Default fallback
+        rgba = cls.GROUP_RGBA.get(group_id, (128, 128, 128, 20)) # Default
+
         
         return cls._blend_rgba_to_hex(rgba, cls.BG_BASE)
 
