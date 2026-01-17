@@ -257,6 +257,43 @@ class DSPUtils:
         a = [1, -(1-alpha)]
         out, next_zi = scipy.signal.lfilter(b, a, audio, zi=zi)
         return out, next_zi
+    
+    @staticmethod
+    def get_biquad_coeffs(filter_type, freq, q, sr=SR):
+        """
+        Calculate Biquad Coefficients (RbJ Cookbook).
+        Types: 'lpf', 'hpf'
+        """
+        w0 = 2 * np.pi * freq / sr
+        alpha = np.sin(w0) / (2 * max(0.01, q))
+        cos_w0 = np.cos(w0)
+        
+        b = np.zeros(3)
+        a = np.zeros(3)
+        
+        if filter_type == 'lpf':
+            b[0] = (1 - cos_w0) / 2
+            b[1] = 1 - cos_w0
+            b[2] = (1 - cos_w0) / 2
+            a[0] = 1 + alpha
+            a[1] = -2 * cos_w0
+            a[2] = 1 - alpha
+        elif filter_type == 'hpf':
+            b[0] = (1 + cos_w0) / 2
+            b[1] = -(1 + cos_w0)
+            b[2] = (1 + cos_w0) / 2
+            a[0] = 1 + alpha
+            a[1] = -2 * cos_w0
+            a[2] = 1 - alpha
+        else:
+            return np.array([1.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0])
+            
+        return b / a[0], a / a[0]
+
+    @staticmethod
+    def apply_biquad_block(audio, b, a, zi):
+        """Apply biquad with state preservation"""
+        return scipy.signal.lfilter(b, a, audio, zi=zi)
 
     @staticmethod
     def generate_osc_block(freq, phase, params, vectorized_fm=False):
@@ -311,3 +348,41 @@ class DSPUtils:
             next_p = (phase + f_total * (BLOCK_SIZE / SR)) % 1.0
             
         return wave, next_p
+
+def resample_by_position(buffer, pos_curve):
+    """
+    Scratch/VarSpeed logic.
+    buffer: (N, Ch)
+    pos_curve: (M,) normalized 0.0-1.0
+    Returns: (M, Ch)
+    """
+    N = len(buffer)
+    # Map 0-1 to 0-(N-1)
+    indices = pos_curve * (N - 1)
+    indices = np.clip(indices, 0, N - 1)
+    
+    # Linear Interpolation
+    idx_0 = np.floor(indices).astype(int)
+    idx_1 = np.clip(idx_0 + 1, 0, N - 1)
+    alpha = indices - idx_0
+    
+    # Expand dims for broadcasting if stereo
+    alpha_exp = alpha[:, np.newaxis]
+    
+    out = (1.0 - alpha_exp) * buffer[idx_0] + alpha_exp * buffer[idx_1]
+    return out
+
+def apply_flutter_var(buffer, rate_curve, depth, sr=48000):
+    """
+    Tremolo/Flutter with variable rate.
+    rate_curve: (N,) Hz values per sample (or block interpolated)
+    """
+    # Phase integration
+    # phase[i] = phase[i-1] + rate[i] / sr
+    dt = 1.0 / sr
+    phases = np.cumsum(rate_curve * dt)
+    
+    mod = np.sin(2.0 * np.pi * phases) # -1 to 1
+    amp = 1.0 - (depth * 0.5 * (1.0 + mod))
+    
+    return buffer * amp[:, np.newaxis]

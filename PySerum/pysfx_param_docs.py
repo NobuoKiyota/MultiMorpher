@@ -34,9 +34,9 @@ PARAM_DOCS = {
         "guide": "低い値(20-40)は重低音、高い値(80-100)はキラキラした音になります。"
     },
     "Voices": {
-        "desc": "ユニゾン(重ねる音)の数を指定します。",
+        "desc": "ユニゾン(重ねる音)の数を指定します。(最大40)",
         "effect": "値が大きいほど厚みのある音になりますが、処理が重くなります。",
-        "guide": "SFX用途なら 1〜4 で十分です。Cord機能を使う場合は和音の構成音数になります。"
+        "guide": "SFX用途なら 1〜4 で十分です。Chord機能を使う場合は和音の構成音数になります。"
     },
     "Chord": {
         "desc": "和音生成モードを有効化します。",
@@ -144,6 +144,69 @@ PARAM_DOCS = {
         "guide": "控えめ(0.3-0.5)にすると隠し味的な広がりが得られます。"
     },
 
+    # --- Oscillators (A & B) ---
+    "OSC:A": {
+        "desc": "OSC:A(メインオシレータ)のマスター音量です。",
+        "effect": "ボイスごとの音量バランスを決定します。",
+        "guide": "0.0でミュート、1.0で最大。"
+    },
+    "OSC:B": {
+        "desc": "OSC:B(サブオシレータ)のマスター音量です。",
+        "effect": "2つめのウェーブテーブルオシレータの音量を制御します。",
+        "guide": "レイヤー音を作るときに使用します。"
+    },
+    "OSC:A:Table": {
+        "desc": "OSC:Aの使用するウェーブテーブル波形です。",
+        "effect": "0:Classic(基本), 1:Monster(攻撃的), 2:Basic(シンプル)",
+        "guide": "音色のキャラクターを決定する最も重要なパラメータです。"
+    },
+    "OSC:B:Table": {"desc": "OSC:Bのウェーブテーブル波形です。OSC:Aと同様です。", "effect": "", "guide": ""},
+    
+    "OSC:A:Pos": {
+        "desc": "ウェーブテーブルの読み出し位置(Warp Position)です。",
+        "effect": "波形の形状をモーフィングさせます。",
+        "guide": "オートメーションで動かすと劇的な音色変化が得られます。"
+    },
+    "OSC:B:Pos": {"desc": "OSC:Bのウェーブテーブル位置です。", "effect": "", "guide": ""},
+
+    "OSC:A:Unison": {
+        "desc": "ユニゾン時のデチューン(音程ズレ)の強さです。",
+        "effect": "値を上げるとSuperSawのような広がりが出ます。",
+        "guide": "Voicesが2以上のときに効果があります。"
+    },
+    "OSC:B:Unison": {"desc": "OSC:Bのデチューン強度です。", "effect": "", "guide": ""},
+
+    "OSC:A:WarpAutoRange": {
+        "desc": "Warp(位置)に対するオートメーションの適用量です。",
+        "effect": "時間経過による波形変化の深さを設定します。",
+        "guide": "正の値で正方向、負の値で逆方向に動きます。"
+    },
+    "OSC:A:WarpAutoType": {
+        "desc": "Warpオートメーションのカーブ形状(画像含む)です。",
+        "effect": "変化のパターンを選択します。",
+        "guide": "手描き画像を選択して複雑な動きを作れます。"
+    },
+    "OSC:B:WarpAutoRange": {"desc": "OSC:B Warpオートメーション深度です。", "effect": "", "guide": ""},
+    "OSC:B:WarpAutoType": {"desc": "OSC:B Warpオートメーションタイプです。", "effect": "", "guide": ""},
+
+    "OSC:A:DetuneAutoRange": {
+        "desc": "Detune(広がり)に対するオートメーションの適用量です。",
+        "effect": "音の広がりの時間変化を設定します。",
+        "guide": "時間とともに音が広がる/収束する表現が可能です。"
+    },
+    "OSC:A:DetuneAutoType": {"desc": "Detuneオートメーションのカーブ形状です。", "effect": "", "guide": ""},
+    "OSC:B:DetuneAutoRange": {"desc": "OSC:B Detuneオートメーション深度です。", "effect": "", "guide": ""},
+    "OSC:B:DetuneAutoType": {"desc": "OSC:B Detuneオートメーションタイプです。", "effect": "", "guide": ""},
+
+    "OSC:A:Semi": {"desc": "OSC:Aの半音単位のピッチシフト(-12~+12)です。", "effect": "", "guide": ""},
+    "OSC:B:Semi": {"desc": "OSC:Bの半音単位のピッチシフトです。", "effect": "", "guide": ""},
+    "OSC:A:Oct": {"desc": "OSC:Aのオクターブシフト(-3~+3)です。", "effect": "", "guide": ""},
+    "OSC:B:Oct": {"desc": "OSC:Bのオクターブシフトです。", "effect": "", "guide": ""},
+    "OSC:A:Pan": {"desc": "OSC:Aのパンニング(左右位置)です。", "effect": "", "guide": ""},
+    "OSC:B:Pan": {"desc": "OSC:Bのパンニング(左右位置)です。", "effect": "", "guide": ""},
+    "OSC:A:Phase": {"desc": "OSC:Aの発音開始位相(0.0-1.0)です。", "effect": "", "guide": "アタック感を調整するのに使います。"},
+    "OSC:B:Phase": {"desc": "OSC:Bの発音開始位相です。", "effect": "", "guide": ""},
+
     # --- LFO (Pitch) ---
     "LFO_P_Range": {
         "desc": "ピッチに対するLFO(周期的な揺れ)の深さ(cent)です。",
@@ -185,6 +248,53 @@ PARAM_DOCS = {
     "LFO_Pan_Type":  {"desc": "LFO(Pan)の波形タイプです。内容: 同上", "effect": "", "guide": ""},
     "LFO_Pan_Speed": {"desc": "LFO(Pan)の速さ(Hz)です。", "effect": "", "guide": ""},
     "LFO_Pan_Shape": {"desc": "LFO(Pan)の形状補正です。", "effect": "", "guide": ""},
+
+    # --- Filters (Page 3) ---
+    "LPF_Enable": {
+        "desc": "ローパスフィルタ(高音カット)を有効にします。",
+        "effect": "音がこもり、丸くなります。",
+        "guide": "BassやPadサウンドに必須です。"
+    },
+    "LPF_Cutoff": {
+        "desc": "LPFのカットオフ周波数(Hz)です。",
+        "effect": "この周波数より高い成分をカットします。",
+        "guide": "オートメーションで動かすとワウ効果になります。"
+    },
+    "LPF_Resonance": {
+        "desc": "カットオフ付近の強調(レゾナンス/Q)です。",
+        "effect": "クセのある「ビヨーン」という音を作ります。",
+        "guide": "上げすぎると耳障り(発振)になることがあります。0.0-0.9推奨。"
+    },
+    "LPF_AutoRange": {
+        "desc": "LPFカットオフのオートメーション適用幅(Hz)です。",
+        "effect": "時間経過でフィルタを開閉します。",
+        "guide": "20000にすると全開から全閉まで動きます。"
+    },
+    "LPF_AutoType": { "desc": "LPFオートメーションのカーブ形状です。", "effect": "", "guide": "" },
+    "LPF_ResAutoRange": { "desc": "LPFレゾナンスのオートメーション適用幅です。", "effect": "", "guide": "" },
+    "LPF_ResAutoType": { "desc": "LPFレゾナンスのオートメーション形状です。", "effect": "", "guide": "" },
+
+    "HPF_Enable": {
+        "desc": "ハイパスフィルタ(低音カット)を有効にします。",
+        "effect": "音がカリカリになり、低域がスッキリします。",
+        "guide": "リード音や金属音に適しています。"
+    },
+    "HPF_Cutoff": { "desc": "HPFのカットオフ周波数(Hz)です。", "effect": "この周波数より低い成分をカットします。", "guide": "" },
+    "HPF_Resonance": { "desc": "HPFのレゾナンス(Q)です。", "effect": "", "guide": "" },
+    "HPF_AutoRange": { "desc": "HPFカットオフのオートメーション深さです。", "effect": "", "guide": "" },
+    "HPF_AutoType": { "desc": "HPFオートメーションのカーブ形状です。", "effect": "", "guide": "" },
+    "HPF_ResAutoRange": { "desc": "HPFレゾナンスのオートメーション深さです。", "effect": "", "guide": "" },
+    "HPF_ResAutoType": { "desc": "HPFレゾナンスのオートメーション形状です。", "effect": "", "guide": "" },
+
+    "Filter_EnvAmt": {
+        "desc": "Filter Envelopeによる変調の適用量(-1.0〜1.0)です。",
+        "effect": "ADSR設定に基づいてフィルタのCutoffを動かします。",
+        "guide": "プラスで「プワッ」、マイナスで「ピュン」という音になります。"
+    },
+    "Filter_Attack": { "desc": "フィルタが開く(閉じる)までの時間(Attack)です。", "effect": "", "guide": "" },
+    "Filter_Decay": { "desc": "フィルタがサスティンレベルに戻るまでの時間(Decay)です。", "effect": "", "guide": "" },
+    "Filter_Sustain": { "desc": "フィルタの維持レベル(Sustain)です。", "effect": "", "guide": "" },
+    "Filter_Release": { "desc": "ノートオフ後のフィルタ変化時間(Release)です。", "effect": "", "guide": "" },
 
     # --- EFFECTS (Page 3) ---
     "DistortionGain": {
@@ -265,5 +375,16 @@ PARAM_DOCS = {
         "desc": "空間効果の適用比率です。",
         "effect": "エフェクトの強さを調整します。",
         "guide": "原音の芯を残したい場合は0.5以下に設定してください。"
+    },
+
+    "FadeOutTime": {
+        "desc": "出力波形の末尾にフェードアウトを適用します(0-1)。",
+        "effect": "1.0で波形の長さの半分(50%)を使ってフェードアウトします。",
+        "guide": "0:無効 / 0.1:短く / 1.0:長く"
+    },
+    "FadeOutCurve": {
+        "desc": "フェードアウトのカーブ特性です。",
+        "effect": "0.0:急峻(ストンと落ちる) / 0.5:直線 / 1.0:緩やか(粘る)",
+        "guide": "好みの減衰感に合わせて調整してください。"
     },
 }

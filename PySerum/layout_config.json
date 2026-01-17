@@ -1,0 +1,11 @@
+{
+    "window_size": "1920x1040",
+    "column_widths": {
+        "Param": 120,
+        "Rnd": 10,
+        "Val": 50,
+        "Min": 50,
+        "Max": 50
+    },
+    "page_padding": 5
+}

@@ -1,0 +1,15 @@
+{
+    "input_path": "",
+    "Iteration": "10",
+    "MixMode": "Random Mix 2",
+    "MorphFreq": "0.5",
+    "ReverseMode": "None",
+    "ScratchEnable": false,
+    "StretchEnable": false,
+    "FlutterEnable": false,
+    "ReverbTime": "3.0",
+    "ReverbWet": "0.0",
+    "DelayTime": "0.5",
+    "DelayFeedback": "0.5",
+    "DelayWet": "0.0"
+}

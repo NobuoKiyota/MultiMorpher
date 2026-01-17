@@ -16,6 +16,7 @@ class PySFXColors:
         8: (100, 255, 50, 30),    # LFO-Vol (Lime)
         9: (255, 80, 120, 30),    # LFO-Pan (Pink)
         10: (50, 50, 255, 80),    # Blue2
+        11: (0, 255, 200, 40),    # OSC Details (Teal)
         
         # New Named Groups (Page 3/4)
         "Distortion": (200, 50, 0, 40),   # Burnt Orange
@@ -24,6 +25,7 @@ class PySFXColors:
         "Delay": (0, 200, 150, 40),       # Teal
         "Spread": (255, 100, 150, 40),    # Rose
         
+        "Master": (30, 30, 200, 50),    # Blue3
         "Envelope": (255, 200, 0, 30),    # Yellow
         "Pitch": (50, 255, 50, 25),       # Green
         "Stereo": (0, 255, 255, 25)       # Cyan

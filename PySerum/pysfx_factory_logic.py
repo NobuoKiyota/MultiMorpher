@@ -62,13 +62,76 @@ class GenerationLogic:
         return f"{name}{octave}"
 
     @staticmethod
-    def get_pitch_curve(range_cent, num_points):
-        """Generates a list of points for pitch automation (AutomationLane)."""
-        if range_cent == 0: return [(0.0, 0.0), (1.0, 0.0)]
+    def get_pitch_curve(range_cent, num_points, curve_val=64, curve_type=0):
+        """
+        Generates pitch automation points.
+        range_cent: Scale factor (used by caller, logic returns 0.0-1.0 or -1.0-1.0 normalized)
+        curve_val: 0-127 (Control time-warping/curvature)
+        curve_type: 0=Flat, 1=Linear, 2=Exp, 3+=Image
+        """
+        if range_cent == 0 or curve_type == 0:
+            return [(0.0, 0.0), (1.0, 0.0)]
+
+        # Time Warping Power
+        # 0 -> 0.1 (Slow start), 64 -> 1.0 (Linear), 127 -> 10.0 (Fast start)
+        # Flip logic: value low (0) -> Log curve (fast rise?), value high -> Exp curve (slow rise)
+        # Let's map: 0..127 -> Power 0.1 .. 10.0
+        power = 10.0 ** ((curve_val - 64) / 40.0) # 40 divisor gives softer range (approx 0.02 - 40)
+        
         points = []
+        
+        # Prepare Image Tracer if needed
+        tracer_curve = None
+        if curve_type >= 3:
+            from pysfx_image_tracer import ImageTracer
+            tracer = ImageTracer()
+            idx = curve_type - 3
+            tracer_curve = tracer.get_curve(idx, resolution=1000)
+
         for i in range(num_points):
             t = i / (num_points - 1)
-            # Randomize middle points, keep start/end at zero offset
-            val = random.uniform(-1.0, 1.0) if 0 < i < num_points - 1 else 0.0
+            
+            # Apply Time Warping to t
+            t_warped = t ** power
+            
+            if curve_type == 1: # Linear Rise
+                # Simply 0.0 to 1.0 (warped in time)
+                val = t_warped
+                
+            elif curve_type == 2: # Exponential
+                # Already warped t is exponential-ish if power != 1
+                # But let's apply a curve function on top? 
+                # Actually Time Warping IS the curvature control for simple A->B.
+                val = t_warped
+                
+            elif curve_type >= 3: # Image
+                # Sample from tracer_curve at t_warped
+                # Curve is 0.0-1.0
+                sample_idx = int(t_warped * (len(tracer_curve) - 1))
+                val = tracer_curve[sample_idx]
+                
+            else:
+                val = 0.0
+
+            # Map 0.0-1.0 to -1.0 to 1.0?
+            # Or keep 0.0-1.0 and let Range decide?
+            # Existing random logic returned -1.0 to 1.0.
+            # If we return 0.0 to 1.0, range=1200 means 0->1200.
+            # If random was -1 to 1, range=1200 means -1200->1200? Or range was max amp?
+            # Let's assume user wants full control via Range.
+            # If Image is 0-1, output is 0-Range.
+            # To center, user can draw line at 0.5.
+            
+            # Correction: To make "Flat" (Type 0) work naturally with Images,
+            # Images should probably be centered around 0.5 if they are bipolar?
+            # But PNG 0-1 is absolute.
+            # Let's stick to returning 0.0 to 1.0.
+            # BUT, the caller: `scaled_points = [(t, v * range_semis) for t, v in points]`
+            # If range_semis = 12 (1 oct). 1.0 -> +1 oct. 0.0 -> 0 oct.
+            # This implies "Unipolar" automation.
+            # If user wants "Bipolar" (LFO style), they need to offset?
+            # Let's assume Unipolar for now as it's easier to verify.
+            
             points.append((t, val))
+            
         return points
