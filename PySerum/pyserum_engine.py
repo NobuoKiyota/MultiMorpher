@@ -11,6 +11,53 @@ CHANNELS = 2
 TABLE_SIZE = 2048
 NUM_FRAMES = 64
 
+class AutomationLane:
+    def __init__(self, duration=4.0):
+        # points: list of (time_0to1, value_minus1to1)
+        # linear interpolation
+        self.points = [(0.0, 0.0), (1.0, 0.0)] 
+        self.duration = duration # seconds
+        self.loop = True
+        self.active = True
+        self.current_time = 0.0
+        
+    def get_value(self, dt):
+        if not self.active or self.duration <= 0.001: return 0.0
+        
+        self.current_time += dt
+        if self.loop:
+            self.current_time %= self.duration
+        elif self.current_time > self.duration:
+            self.current_time = self.duration
+            
+        # Normalize time 0..1
+        t_norm = self.current_time / self.duration
+        
+        # Find points around t_norm
+        # Assumes points are sorted by time
+        if not self.points: return 0.0
+        if len(self.points) == 1: return self.points[0][1]
+        
+        # Binary search or simple loop? points likely small (<20)
+        p0 = self.points[0]
+        p1 = self.points[-1]
+        
+        if t_norm <= p0[0]: return p0[1]
+        if t_norm >= p1[0]: return p1[1]
+        
+        for i in range(len(self.points)-1):
+            if self.points[i][0] <= t_norm <= self.points[i+1][0]:
+                p0 = self.points[i]
+                p1 = self.points[i+1]
+                break
+        
+        # Interpolate
+        range_t = p1[0] - p0[0]
+        if range_t < 1e-6: return p0[1]
+        alpha = (t_norm - p0[0]) / range_t
+        val = (1.0 - alpha) * p0[1] + alpha * p1[1]
+        return val
+
 class WavetableGenerator:
     @staticmethod
     def _generate_saw_table():
@@ -143,6 +190,11 @@ class ADSR:
                     self.level = 1.0
                     self.state = self.DECAY
             elif self.state == self.DECAY:
+                if self.decay_step <= 1e-9:
+                    self.level = self.sustain_level
+                    self.state = self.SUSTAIN
+                    continue
+
                 needed = int((self.level - self.sustain_level) / self.decay_step) + 1
                 n = min(remaining, needed)
                 output[cursor:cursor+n] = self.level - np.arange(n) * self.decay_step
@@ -411,6 +463,71 @@ class SerumEngine:
         self.mod_cutoff = 0.0; self.mod_wt = 0.0
         self.mod_env_amt_cutoff = 0.0; self.mod_env_amt_pitch = 0.0
         self.base_cutoff = 20000.0
+        
+        self.automations = {} # dict of param_id -> AutomationLane
+
+    def get_automated_value(self, param_id, base_value, min_val=0.0, max_val=1.0):
+        if param_id not in self.automations: return base_value
+        lane = self.automations[param_id]
+        if not lane.active: return base_value
+        
+        # Calculate per block or per sample? 
+        # For efficiency, per block (using BLOCK_SIZE / SR duration step)
+        # get_value returns offset (-1 to 1).
+        # We need to map that offset to parameter range?
+        # User spec: "base_value にオートメーション値を加算"
+        # Let's assume automation value is directly added to base value (normalized 0-1 or native?)
+        # User said "value_minus1to1". 
+        # If parameter is like Cutoff 20~20000, adding 0.5 is invisible.
+        # Interpretation: Automation value is Normalized Scalar (-1.0 to 1.0) * Range? Or just simple addition?
+        # A simpler approach for general usage: Automation logic defines "Offset".
+        # For Frequency, it might be offset * 1000 or something.
+        # But generic implementation is tricky.
+        # Let's standardize: Automation is 0.0 to 1.0 (unipolar) or -1.0 to 1.0 (bipolar).
+        # And it maps to the Full Range of the parameter?
+        
+        # Let's assume "base_value" passed in is the stored value.
+        # If we just add automation (range -1 to 1) directly, it works for 0-1 params (Vol, etc).
+        # For Cutoff (20-20000), we probably want to normalize base, add, then denormalize?
+        # Or simpler: Automation applies a scaled offset based on parameter type.
+        # User didn't specify scaling.
+        # I will assume simple addition for 0-1 params.
+        # For non 0-1 (Cutoff, Octave), I will handle them specifically if I can, OR just return raw addition and let caller handle scaling/clipping.
+        # Re-reading: "範囲は 0.0~1.0 (または適切な範囲) にクリップする。"
+        # So I should return the final value.
+        
+        # Let's calculate the automation offset for this block once.
+        # Note: generate_block calls this. state is updated there.
+        # Since I cannot easily isolate "update" from "peek", I will assume generate_block calls `lane.get_value(dt)` 
+        # BUT `get_value` advances time!
+        # If I call `get_automated_value` 50 times in one block for 50 params, does time advance 50 times? No.
+        # Time should advance ONCE per block per lane.
+        # But `SerumEngine` doesn't track global time easily for this list.
+        # Solution: `lane.get_value` should take `dt` to advance. 
+        # To avoid multiple advances, I should perhaps update all lanes at start of `generate_block`?
+        # Yes.
+        
+        current_auto_val = lane.current_val # Assumes updated elsewhere
+        
+        # Scaling logic based on param_id guessing or just simple addition?
+        # Simple addition is safest for generic system if we assume automation is "modulation".
+        # But for huge ranges like Cutoff, 0-1 modulation is tiny.
+        # I will apply specific scaling for known big params.
+        
+        offset = current_auto_val
+        if "cutoff" in param_id: offset *= 10000.0
+        if "oct" in param_id: offset *= 2 # +/- 2 octaves
+        if "semi" in param_id: offset *= 12
+        if "fine" in param_id: offset *= 50
+        if "rate" in param_id: offset *= 5.0
+        
+        final = base_value + offset
+        return np.clip(final, min_val, max_val)
+
+    def _update_automations(self):
+        dt = BLOCK_SIZE / SR
+        for lane in self.automations.values():
+            lane.current_val = lane.get_value(dt)
 
     def set_osc_a_params(self, table_name, pos, unison, vol, semi, octave=0, fine=0, pan=0.0, phase_val=0.0, phase_rand=False):
         if table_name in self.wavetables: self.table_a_frames = self.wavetables[table_name]
@@ -463,10 +580,54 @@ class SerumEngine:
     def stop_recording(self): return self.recorder.stop()
 
     def generate_block(self):
+        self._update_automations()
+        
+        # Retrieve Automated Values
+        # LFO
+        lfo_rate = self.get_automated_value("lfo_rate", self.lfo.rate, 0.01, 20.0)
+        lfo_mod_cut = self.get_automated_value("lfo_cut", self.mod_cutoff, 0.0, 1.0)
+        lfo_mod_wt = self.get_automated_value("lfo_wt", self.mod_wt, 0.0, 1.0)
+        # We need to temporarily apply these to the objects or just use them in calculations?
+        # LFO object stores rate. We should update it.
+        # But `lfo.process` uses `self.rate`.
+        # So:
+        saved_lfo_rate = self.lfo.rate
+        self.lfo.rate = lfo_rate
+        
         lfo_block = self.lfo.process(BLOCK_SIZE)
+        
+        # Restore (so GUI knob value doesn't get overwritten by modulation permanently? 
+        # No, `lfo.rate` IS the knob value usually.
+        # If I overwrite `self.lfo.rate`, next UI sync might differ?
+        # Actually, `set_lfo` updates `self.lfo.rate`.
+        # If I change it here, `sync_gui` reads it back?
+        # Usually we want non-destructive modulation.
+        # `LFO.process` uses `self.rate`. I should modify `LFO` to accept rate in `process` or restore it.
+        self.lfo.rate = saved_lfo_rate
+        
         mod_val = np.mean(lfo_block)
-        current_wt_pos_a = np.clip(self.pos_a + (mod_val * self.mod_wt), 0.0, 1.0)
-        current_wt_pos_b = self.pos_b 
+        
+        # OSC Params
+        pos_a = self.get_automated_value("osc_a_pos", self.pos_a, 0.0, 1.0)
+        vol_a = self.get_automated_value("osc_a_vol", self.vol_a, 0.0, 1.0)
+        pan_a = self.get_automated_value("osc_a_pan", self.pan_a, -1.0, 1.0)
+        oct_a = self.get_automated_value("osc_a_oct", self.oct_a, -3, 3)
+        semi_a = self.get_automated_value("osc_a_semi", self.semi_a, -12, 12)
+        fine_a = self.get_automated_value("osc_a_fine", self.fine_a, -100, 100)
+        
+        pos_b = self.get_automated_value("osc_b_pos", self.pos_b, 0.0, 1.0)
+        vol_b = self.get_automated_value("osc_b_vol", self.vol_b, 0.0, 1.0)
+        pan_b = self.get_automated_value("osc_b_pan", self.pan_b, -1.0, 1.0)
+        oct_b = self.get_automated_value("osc_b_oct", self.oct_b, -3, 3)
+        semi_b = self.get_automated_value("osc_b_semi", self.semi_b, -12, 12)
+        fine_b = self.get_automated_value("osc_b_fine", self.fine_b, -100, 100)
+        
+        # Cutoff
+        base_cut = self.get_automated_value("filter_cutoff", self.base_cutoff, 20.0, 20000.0)
+        
+        current_wt_pos_a = np.clip(pos_a + (mod_val * lfo_mod_wt), 0.0, 1.0)
+        current_wt_pos_b = pos_b 
+
         
         mix_l = np.zeros(BLOCK_SIZE, dtype=np.float32)
         mix_r = np.zeros(BLOCK_SIZE, dtype=np.float32)
@@ -476,28 +637,69 @@ class SerumEngine:
         active_voices = 0
         
         for v in self.voices:
-            if v.active:
-                vl, vr, ve_mod = v.process(
-                    self.table_a_frames, current_wt_pos_a,
-                    self.table_b_frames, current_wt_pos_b,
-                    self.vol_a, self.vol_b,
-                    self.semi_a, self.semi_b,
-                    self.fine_a, self.fine_b,
-                    self.oct_a, self.oct_b,
-                    self.pan_a, self.pan_b,
-                    self.mod_env_amt_pitch
-                )
-                mix_l += vl
-                mix_r += vr
-                if active_voices == 0: avg_mod_env = np.mean(ve_mod)
-                else: avg_mod_env += np.mean(ve_mod)
-                active_voices += 1
+                if v.active:
+                    vl, vr, ve_mod = v.process(
+                        self.table_a_frames, current_wt_pos_a,
+                        self.table_b_frames, current_wt_pos_b,
+                        vol_a, vol_b,
+                        semi_a, semi_b,
+                        fine_a, fine_b,
+                        oct_a, oct_b,
+                        pan_a, pan_b,
+                        self.mod_env_amt_pitch
+                    )
+                    mix_l += vl
+                    mix_r += vr
+                    if active_voices == 0: avg_mod_env = np.mean(ve_mod)
+                    else: avg_mod_env += np.mean(ve_mod)
+                    active_voices += 1
         
         if active_voices > 1: avg_mod_env /= active_voices
         
-        mod_total = (mod_val * self.mod_cutoff) + (avg_mod_env * self.mod_env_amt_cutoff)
-        current_cutoff = self.base_cutoff + (mod_total * 5000.0) 
+        if active_voices > 1: avg_mod_env /= active_voices
+        
+        mod_total = (mod_val * lfo_mod_cut) + (avg_mod_env * self.mod_env_amt_cutoff)
+        current_cutoff = base_cut + (mod_total * 5000.0) 
+        
+        # Dist/Delay Params
+        drv = self.get_automated_value("dist_drive", self.fx_dist.drive, 0.0, 1.0)
+        self.fx_dist.set_params(drv) # Temporarily set? 
+        # Setting params updates state. If we set it back later?
+        # Actually FX objects store state. 
+        # If I modify them here, the GUI knob might read back the modulated value?
+        # That's actually OK for visual feedback if we wanted, but `sync_gui` pulls from `self.fx_dist.drive`.
+        # If I set it here, `self.fx_dist.drive` changes.
+        # Then `sync_gui` will show the jumping knob?
+        # Users usually like seeing knobs move with automation.
+        # So I will permanently update the fx object state for this block, but I need to ensure the GUI knob writes back the BASE value?
+        # No, if Knob writes 0.5, and Automation adds 0.2 -> 0.7.
+        # Next block, Knob is still 0.5 (in UI). 
+        # If I setup `self.fx_dist.drive = 0.7` here, then next GUI update loop might read 0.7 and move Knob?
+        # If Knob moves to 0.7, then next block Automation adds 0.2 -> 0.9. Feedback loop!
+        # SOLUTION: Distinguish between "Base Parameter" and "Modulated Parameter".
+        # Currently `SerumEngine` stores Base params (e.g. `self.vol_a`).
+        # `FXDistortion` stores `self.drive`.
+        # I should treat `FXDistortion` as the "DSP Processor" which receives the Modulated Value.
+        # The Base Value should be stored in `SerumEngine` or we assume `set_params` from UI updates the Base.
+        # But `set_dist` calls `self.fx_dist.set_params`.
+        # So `fx_dist` holds the Base.
+        # Problem: I need to pass modulated value to `process` without overwriting Base.
+        # `FXDistortion.process` doesn't take params.
+        # I must modify `FXDistortion` to allow checking params per block or temporary override.
+        # Or simply: Save state, set mod, process, restore.
+        saved_drive = self.fx_dist.drive
+        self.fx_dist.set_params(drv)
+        
+        dl_mix = self.get_automated_value("delay_mix", self.fx_delay.mix, 0.0, 1.0)
+        dl_time = self.get_automated_value("delay_time", self.fx_delay.time, 0.01, 1.0)
+        saved_d_mix = self.fx_delay.mix
+        saved_d_time = self.fx_delay.time
+        self.fx_delay.mix = dl_mix # direct set to avoid full param reset overhead if any
+        self.fx_delay.time = dl_time
+        
         self.fx_filter.set_params(current_cutoff)
+        # Filter is updated every block anyway via `current_cutoff` logic above, which uses `base_cut`.
+        # So Filter is fine.
 
         stereo = np.column_stack((mix_l, mix_r))
         stereo = self.fx_filter.process(stereo)
@@ -505,6 +707,12 @@ class SerumEngine:
         stereo = self.fx_delay.process(stereo)
         stereo = np.tanh(stereo)
         self.recorder.process(stereo)
+        
+        # Restore FX state
+        self.fx_dist.drive = saved_drive
+        self.fx_delay.mix = saved_d_mix
+        self.fx_delay.time = saved_d_time
+        
         return stereo.flatten()
 
     def get_patch_state(self):

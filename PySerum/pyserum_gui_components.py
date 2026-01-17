@@ -1,37 +1,47 @@
 import customtkinter as ctk
 import tkinter as tk
 import math
+import numpy as np
+
+def adjust_brightness(hex_color, factor):
+    # hex_color: "#RRGGBB"
+    if not hex_color.startswith("#") or len(hex_color) != 7: return hex_color
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+    
+    r = min(255, int(r * factor))
+    g = min(255, int(g * factor))
+    b = min(255, int(b * factor))
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 class RotaryKnob(ctk.CTkFrame):
-    def __init__(self, master, width=60, height=80, from_=0, to=100, command=None, text="Knob", start_val=0, 
-                 progress_color="#00e5ff", track_color="#111111", **kwargs):
+    def __init__(self, master, width=60, height=80, from_=0, to=100, command=None, hover_command=None, text="Knob", start_val=0, 
+                 progress_color="#00e5ff", track_color="#111111", show_value=False, param_id=None, focus_callback=None, **kwargs):
         super().__init__(master, width=width, height=height, fg_color="transparent", **kwargs)
         
         self.min_val = from_
         self.max_val = to
         self.value = start_val
         self.command = command
+        self.hover_command = hover_command
         self.text = text
-        self.progress_color = progress_color
+        self.base_progress_color = progress_color
         self.track_color = track_color
+        self.show_value = show_value
+        self.param_id = param_id
+        self.focus_callback = focus_callback
         
         self.click_y = 0
         self.senstivity = 0.01
         
         # UI
-        self.canvas = tk.Canvas(self, width=40, height=40, bg=track_color, highlightthickness=0)
-        # However, canvas bg should transparent/frame color? 
-        # Standard Tk canvas doesn't support transparent bg easily on Windows without tricks.
-        # But our panel color is #23262b. Let's set canvas bg to match parent or just generic dark?
-        # User specified "Knob Track: #111111". That is the Arc line.
-        # The rect itself should probably match the panel.
-        # Defaulting simple black/dark grey for now, handled by parent usually but here we hardcode or pass?
-        # Let's use a safe dark color close to panel.
-        self.canvas.configure(bg="#23262b") 
+        self.canvas = tk.Canvas(self, width=40, height=40, bg="#23262b", highlightthickness=0)
         self.canvas.pack(pady=2)
         
-        self.lbl_val = ctk.CTkLabel(self, text=f"{self.value:.2f}", font=("Arial", 9), text_color="#aaaaaa")
-        self.lbl_val.pack()
+        if self.show_value:
+            self.lbl_val = ctk.CTkLabel(self, text=f"{self.value:.2f}", font=("Arial", 9), text_color="#aaaaaa")
+            self.lbl_val.pack()
         
         self.lbl_text = ctk.CTkLabel(self, text=self.text, font=("Arial", 10, "bold"), text_color="#eeeeee")
         self.lbl_text.pack()
@@ -41,6 +51,9 @@ class RotaryKnob(ctk.CTkFrame):
         self.canvas.bind("<Button-1>", self.on_click)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<MouseWheel>", self.on_scroll)
+        
+        self.canvas.bind("<Enter>", self.on_enter)
+        self.canvas.bind("<Leave>", self.on_leave)
         
     def update_knob(self):
         self.canvas.delete("all")
@@ -60,43 +73,48 @@ class RotaryKnob(ctk.CTkFrame):
         
         current_extent = max_extent * norm
         
+        # Dynamic Color: 50% brightness at 0, 100% at 1 (or 100% -> 150%?)
+        # Let's say darker at low values.
+        # factor: 0.4 + 0.6 * norm
+        factor = 0.4 + 0.8 * norm
+        # Assuming base color is bright.
+        display_color = adjust_brightness(self.base_progress_color, factor)
+
         # 1. Track (Background Arc)
         self.canvas.create_arc(cx-r, cy-r, cx+r, cy+r, start=start_angle, extent=max_extent, 
                                style="arc", width=5, outline=self.track_color)
         
         # 2. Progress (Foreground Arc)
         self.canvas.create_arc(cx-r, cy-r, cx+r, cy+r, start=start_angle, extent=current_extent, 
-                               style="arc", width=5, outline=self.progress_color)
+                               style="arc", width=5, outline=display_color)
         
         # 3. Indicator Line (Needle)
-        # Angle in degrees for math (Tkinter arc start is 3 oclock = 0? No. 
-        # Tkinter: 3 oclock is 0. Positive is CounterClockwise.
-        # So 240 is approx 7-8 oclock.
-        # Angle = Start + Extent
         angle_deg = start_angle + current_extent
         angle_rad = math.radians(angle_deg)
         
-        # Line from slightly inner to outer radius
-        r_in = 0
         r_out = r
         mx = cx + r_out * math.cos(angle_rad)
         my = cy - r_out * math.sin(angle_rad) # y inverted
         
-        # White line for high contrast visibility
         self.canvas.create_line(cx, cy, mx, my, fill="#ffffff", width=2)
         
-        # Label
-        self.lbl_val.configure(text=f"{self.value:.2f}")
+        if self.show_value:
+            self.lbl_val.configure(text=f"{self.value:.2f}")
 
     def set(self, val):
         self.value = max(self.min_val, min(self.max_val, val))
         self.update_knob()
+        if self.hover_command and self.mouse_in:  # Update display if hovering/dragging
+             self.hover_command(self.text, self.value)
         
     def get(self):
         return self.value
         
     def on_click(self, event):
         self.click_y = event.y
+        self.mouse_in = True
+        if self.focus_callback and self.param_id:
+            self.focus_callback(self.param_id)
         
     def on_drag(self, event):
         dy = self.click_y - event.y
@@ -114,6 +132,16 @@ class RotaryKnob(ctk.CTkFrame):
         step = rng * 0.05
         self.set(self.value + step * delta)
         if self.command: self.command(self.value)
+
+    # Hover
+    mouse_in = False
+    def on_enter(self, event):
+        self.mouse_in = True
+        if self.hover_command: self.hover_command(self.text, self.value)
+        
+    def on_leave(self, event):
+        self.mouse_in = False
+        if self.hover_command: self.hover_command("", None)
 
 class EnvelopeEditor(ctk.CTkFrame):
     def __init__(self, master, width=300, height=150, callback=None, 
@@ -193,12 +221,6 @@ class EnvelopeEditor(ctk.CTkFrame):
         x2, y2 = self._to_canvas_coords(t2, l2)
         x3, y3 = self._to_canvas_coords(t3, l3)
         
-        # Fill Polygon (Close the loop back to start)
-        # Start(bottom) -> Start(0,0) -> Attack -> Decay/Sus -> Release -> Release(bottom)
-        # y0 is 0.0 level (bottom)? No. l0=0.0 means bottom.
-        # But we need to be careful.
-        # l0=0.0 -> y0 is bottom.
-        
         # Polygon points
         points = [
             x0, y0, # Start (0,0)
@@ -208,9 +230,6 @@ class EnvelopeEditor(ctk.CTkFrame):
             x3, self.canvas.winfo_height(), # Straight down from release end
             x0, self.canvas.winfo_height()  # Straight down from start
         ]
-        # Actually simplified:
-        # (x0,y0) -> (x1,y1) -> (x2,y2) -> (x3,y3) are the curve.
-        # y0 and y3 are "bottom" visually if level 0.
         
         self.canvas.create_polygon(points, fill=self.fill_color, outline="")
         
@@ -367,3 +386,209 @@ class VirtualKeyboard(ctk.CTkFrame):
             self.canvas.itemconfig(info["tag"], fill=c)
         if self.callback_off: self.callback_off(note)
         if self.pressed_note == note: self.pressed_note = None
+
+class AutomationEditor(ctk.CTkFrame):
+    def __init__(self, master, width=250, height=400, update_callback=None, **kwargs):
+        super().__init__(master, width=width, height=height, **kwargs)
+        self.update_callback = update_callback # fn(points, duration)
+        
+        self.current_param_id = None
+        self.points = [(0.0, 0.0), (1.0, 0.0)]
+        self.duration = 4.0
+        
+        # Colors
+        self.bg_color = "#23262b"
+        self.line_color = "#e67e22" # Orange
+        self.handle_color = "#ffffff"
+        
+        # Header
+        self.header = ctk.CTkFrame(self, fg_color="transparent")
+        self.header.pack(fill="x", padx=5, pady=5)
+        self.lbl_title = ctk.CTkLabel(self.header, text="Automation", font=("Arial", 12, "bold"), text_color=self.line_color)
+        self.lbl_title.pack(side="left")
+        
+        # Duration Knob
+        self.knob_dur = RotaryKnob(self.header, text="Time", from_=0.1, to=16.0, start_val=4.0, 
+                                   command=self.on_dur_change, width=50, height=60, 
+                                   progress_color=self.line_color, show_value=False)
+        self.knob_dur.pack(side="right")
+        
+        # Canvas
+        self.canvas = tk.Canvas(self, bg=self.bg_color, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        self.canvas.bind("<Button-1>", self.on_click)
+        self.canvas.bind("<B1-Motion>", self.on_drag)
+        self.canvas.bind("<Double-Button-1>", self.on_dclick)
+        
+        self.drag_idx = None
+        self.draw()
+
+    def set_target(self, param_id, param_name, points, duration):
+        self.current_param_id = param_id
+        self.lbl_title.configure(text=f"Auto: {param_name}")
+        self.points = sorted(points, key=lambda x: x[0])
+        self.duration = duration
+        self.knob_dur.set(duration)
+        self.draw()
+
+    def on_dur_change(self, val):
+        self.duration = val
+        self.trigger_update()
+
+    def draw(self):
+        self.canvas.delete("all")
+        w = max(10, self.canvas.winfo_width())
+        h = max(10, self.canvas.winfo_height())
+        
+        # Grid
+        self.canvas.create_line(0, h/2, w, h/2, fill="#333", dash=(2,2))
+        self.canvas.create_line(w/4, 0, w/4, h, fill="#333", dash=(2,2))
+        self.canvas.create_line(w/2, 0, w/2, h, fill="#333", dash=(2,2))
+        self.canvas.create_line(3*w/4, 0, 3*w/4, h, fill="#333", dash=(2,2))
+        
+        # Points -> Coords
+        coords = []
+        for t, v in self.points:
+            cx = t * w
+            cy = h/2 - (v * (h/2 - 10)) 
+            coords.append((cx, cy))
+            
+        # Draw Line
+        if len(coords) > 1:
+            self.canvas.create_line(coords, fill=self.line_color, width=2)
+            
+        # Draw Points
+        r = 4
+        for i, (cx, cy) in enumerate(coords):
+            tag = f"p_{i}"
+            col = self.handle_color
+            if i == 0 or i == len(coords)-1: col = "#888" # Lock ends
+            self.canvas.create_oval(cx-r, cy-r, cx+r, cy+r, fill=col, tags=tag)
+
+    def _to_logic(self, x, y):
+        w = self.canvas.winfo_width()
+        h = self.canvas.winfo_height()
+        t = x / w
+        t = max(0.0, min(1.0, t))
+        
+        v = (h/2 - y) / (h/2 - 10)
+        v = max(-1.0, min(1.0, v))
+        return t, v
+
+    def on_click(self, event):
+        if not self.current_param_id: return
+        x, y = event.x, event.y
+        
+        w = self.canvas.winfo_width()
+        h = self.canvas.winfo_height()
+        min_dist = 10
+        hit = -1
+        
+        for i, (t, v) in enumerate(self.points):
+            cx = t * w
+            cy = h/2 - (v * (h/2 - 10))
+            dist = ((cx-x)**2 + (cy-y)**2)**0.5
+            if dist < min_dist:
+                min_dist = dist
+                hit = i
+        
+        if hit != -1:
+            self.drag_idx = hit
+        else:
+            t, v = self._to_logic(x, y)
+            self.points.append((t, v))
+            self.points.sort(key=lambda p: p[0])
+            self.draw()
+            self.trigger_update()
+            
+    def on_drag(self, event):
+        if self.drag_idx is None: return
+        t, v = self._to_logic(event.x, event.y)
+        
+        if self.drag_idx == 0: t = 0.0
+        if self.drag_idx == len(self.points) - 1: t = 1.0
+        
+        if 0 < self.drag_idx < len(self.points) - 1:
+            prev_t = self.points[self.drag_idx-1][0]
+            next_t = self.points[self.drag_idx+1][0]
+            t = max(prev_t + 0.01, min(next_t - 0.01, t))
+            
+        self.points[self.drag_idx] = (t, v)
+        self.draw()
+        self.trigger_update()
+
+    def on_dclick(self, event):
+        if self.drag_idx is not None:
+             if 0 < self.drag_idx < len(self.points) - 1:
+                 del self.points[self.drag_idx]
+                 self.drag_idx = None
+                 self.draw()
+                 self.trigger_update()
+
+    def on_release(self, event):
+        self.drag_idx = None
+
+    def trigger_update(self):
+        if self.update_callback and self.current_param_id:
+            self.update_callback(self.current_param_id, self.points, self.duration)
+
+class LevelMeter(ctk.CTkFrame):
+    def __init__(self, master, width=30, height=300, **kwargs):
+        super().__init__(master, width=width, height=height, **kwargs)
+        self.canvas = tk.Canvas(self, width=width, height=height, bg="#111111", highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
+        self.peak = 0.0
+        
+        self.lbl_val = ctk.CTkLabel(self, text="-inf dB", font=("Arial", 9), text_color="#aaaaaa")
+        self.lbl_val.place(relx=0.5, rely=0.05, anchor="center")
+
+    def update_meter(self, stereo_block):
+        # stereo_block: numpy array (samples)
+        if len(stereo_block) == 0: return
+
+        # Calc Peak (L+R average or max)
+        # stereo_block is interleaved if from pyaudio? Or usually from engine it's flat float32 array
+        # Engine calculate_block returns flat array. Stereo is reshaped later.
+        # But we pass data to update_meter.
+        
+        # Simple Peak
+        peak = np.max(np.abs(stereo_block))
+        
+        # Check against previous to smooth decay?
+        self.peak = max(peak, self.peak * 0.9) # Simple falloff
+
+        self.draw()
+
+    def draw(self):
+        self.canvas.delete("all")
+        w = max(10, self.canvas.winfo_width())
+        h = max(10, self.canvas.winfo_height())
+        
+        # DB Calculation
+        db = 20 * math.log10(max(1e-9, self.peak))
+        self.lbl_val.configure(text=f"{db:.1f} dB")
+        
+        # Map peak 0..1 to height
+        # Use log scale visually? Linear for now.
+        val = self.peak
+        val = max(0, min(1, val))
+        
+        meter_h = h * val
+        
+        # Gradient colors?
+        # Draw segments
+        # Green (-inf to -12), Yellow (-12 to -3), Red (-3 to 0)
+        
+        # Simple single bar with color change at top
+        c = "#00ff00"
+        if val > 0.7: c = "#ffff00" # approx -3dB linear is 0.707
+        if val > 0.9: c = "#ff0000"
+        
+        self.canvas.create_rectangle(0, h-meter_h, w, h, fill=c, outline="")
+        
+        # Draw some ticks
+        for db_tick, col in [(-3, "#555"), (-6, "#555"), (-12, "#555"), (-24, "#555")]:
+            lin = 10**(db_tick/20)
+            y = h - (lin * h)
+            self.canvas.create_line(0, y, w, y, fill=col)
