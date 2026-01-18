@@ -11,6 +11,9 @@ class PyQuartzFactory:
         self.engine = PyQuartzEngine()
         self.out_dir = "Output"
         if not os.path.exists(self.out_dir): os.makedirs(self.out_dir)
+        
+        self.captured_params = {}
+        self.recording_params = False
 
         # Initialize ImageTracer and update PitchType param range
         try:
@@ -27,17 +30,29 @@ class PyQuartzFactory:
             print(f"Warning: Failed to init ImageTracer: {e}")
 
     def _get_param_value(self, config, name):
-        """Random設定を考慮して値を取得するヘルパー"""
-        node = config[name]
+        """Random設定を考慮して値を取得し、ログ用に保存するヘルパー"""
+        node = config.get(name)
+        if not node: return 0.0
+        
         if node.get("random"):
-            return random.uniform(float(node["min"]), float(node["max"]))
-        return float(node["value"])
+            val = random.uniform(float(node["min"]), float(node["max"]))
+        else:
+            val = float(node["value"])
+            
+        if self.recording_params:
+            self.captured_params[name] = val
+        return val
 
     def run_advanced_batch(self, config, num_files=10, progress_callback=None):
         print(f"--- PyQuartz SFX Factory Production: {num_files} files ---")
         
         for p_idx in range(num_files):
             if progress_callback: progress_callback(p_idx, num_files)
+            
+            # Reset Log Capture
+            self.captured_params = {}
+            self.recording_params = True
+            
             # 1. 各種パラメータの決定 (Random設定対応)
             duration = self._get_param_value(config, "Duration")
             root_note = int(self._get_param_value(config, "NoteRange"))
@@ -378,121 +393,184 @@ class PyQuartzFactory:
             xlsx_path = os.path.join(self.out_dir, "generation_log.xlsx")
             
             if os.path.exists(xlsx_path):
-                wb = openpyxl.load_workbook(xlsx_path)
-                ws = wb.active
+                try:
+                    wb = openpyxl.load_workbook(xlsx_path)
+                    ws = wb.active
+                except:
+                    # Fallback if corrupted
+                    wb = openpyxl.Workbook()
+                    ws = wb.active
             else:
                 wb = openpyxl.Workbook()
                 ws = wb.active
                 ws.title = "Generation Log"
-                headers = ["File Name"] + [p.name for p in PySFXParams.get_sorted_params()] + ["Date"]
+                # Headers: Score, File Name, Params..., Date
+                headers = ["Score", "File Name"] + [p.name for p in PySFXParams.get_sorted_params()] + ["Date"]
                 ws.append(headers)
             
-            thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-            sorted_params = PySFXParams.get_sorted_params()
-            header_row = ws[1]
-            header_row[0].alignment = Alignment(horizontal='center', vertical='bottom', text_rotation=0) 
-            for cell in header_row:
-                 cell.alignment = Alignment(text_rotation=70, horizontal='center', vertical='bottom')
-                 cell.font = Font(bold=True)
-                 cell.border = thin_border
-                 
-            for idx_p, p in enumerate(sorted_params):
-                col_idx = idx_p + 2
-                cell = ws.cell(row=1, column=col_idx)
-                hex_color = PySFXColors.get_excel_color(p.group)
-                if hex_color:
-                    cell.fill = PatternFill(start_color=hex_color, end_color=hex_color, fill_type="solid")
+            # Check Header (Migration for Score column)
+            if ws['A1'].value != "Score":
+                ws.insert_cols(1)
+                ws['A1'] = "Score"
             
-            used_params = {
-                "Duration": duration,
-                "NoteRange": root_note,
-                "Voices": num_voices,
-                "Strum": strum_ms,
-                "Chord": is_chord,
-                "Portament": engine_updates.get('portamento', 0),
-                "AmpAttack": a * 1000,
-                "AmpDecay": d * 1000,
-                "AmpSustain": s * 127,
-                "AmpRelease": r * 1000,
-                "PitchRange": pitch_range_cents,
-                "PitchType": pitch_type,
-                "PitchCurve": pitch_val if (pitch_range_cents != 0 and pitch_type != 0) else 0,
-                "MasterPan": engine_updates.get('master_pan', 64),
-                "Pan": "Per-Voice/Random" if config["Pan"]["random"] else config["Pan"]["value"],
-                "Normalize": do_normalize,
-                "RouteVoiceVolume": vol_root,
-                "MultiVoiceVolume": vol_multi,
-                "DetuneVoice": detune_count,
-                "DetuneRange": detune_range_cents,
-                "DetuneVolume": detune_vol_ratio,
-                "DetuneRange": detune_range_cents,
-                "DetuneVolume": detune_vol_ratio,
-                "OSC:A:WarpAutoRange": engine_updates['osc_warpautorange'],
-                "OSC:A:DetuneAutoRange": engine_updates['osc_detuneautorange'],
-                
-                "OSC:B:WarpAutoRange": engine_updates['osc_b_warpautorange'],
-                "OSC:B:DetuneAutoRange": engine_updates['osc_b_detuneautorange'],
-                
-                "LFO_P_Range": engine_updates['lfo_p_range'],
-                "LFO_P_Type": engine_updates['lfo_p_type'],
-                "LFO_P_Speed": engine_updates['lfo_p_speed'],
-                "LFO_P_Shape": engine_updates['lfo_p_shape'],
-                "LFO_V_Range": engine_updates['lfo_v_range'],
-                "LFO_V_Type": engine_updates['lfo_v_type'],
-                "LFO_V_Speed": engine_updates['lfo_v_speed'],
-                "LFO_V_Shape": engine_updates['lfo_v_shape'],
-                "LFO_Pan_Range": engine_updates['lfo_pan_range'],
-                "LFO_Pan_Type": engine_updates['lfo_pan_type'],
-                "LFO_Pan_Speed": engine_updates['lfo_pan_speed'],
-                "LFO_Pan_Shape": engine_updates['lfo_pan_shape'],
-                "DistortionGain": dist_gain,
-                "DistortionFeed": dist_tone,
-                "DistortionWet": dist_wet,
-                "PhaserDepth": ph_depth,
-                "PhaserSpeed": ph_speed,
-                "PhaserWet": ph_wet,
-                "ReverbTime": rv_time,
-                "ReverbSpread": rv_spread,
-                "ReverbWet": rv_wet,
-                "DelayTime": dly_time,
-                "DelayFeedback": dly_fb,
-                "DelayWet": dly_wet,
-                "SpreadRange": sp_range,
-                "SpreadDensity": sp_density,
-                "SpreadWet": sp_wet,
-                "LPF_Enable": config["LPF_Enable"]["value"],
-                "LPF_Cutoff": engine_updates['lpf_cutoff'],
-                "LPF_AutoRange": engine_updates['lpf_autorange'],
-                "HPF_Enable": config["HPF_Enable"]["value"],
-                "HPF_Cutoff": engine_updates['hpf_cutoff'],
-                "HPF_AutoRange": engine_updates['hpf_autorange'],
-                "FadeOutTime": fade_out_val,
-                "FadeOutCurve": fade_out_curve
-            }
-
-            row_data = [filename]
+            # Construct Row
+            # Score is empty by default (User fills 1-10)
+            row_data = ["", filename]
+            sorted_params = PySFXParams.get_sorted_params()
+            
             for p in sorted_params:
-                val = used_params.get(p.name, "")
-                if isinstance(val, (float, np.floating)) and isinstance(val, (int, float)):
+                # 1. Try Captured (Prioritize actual used value)
+                if p.name in self.captured_params:
+                    val = self.captured_params[p.name]
+                # 2. Try Config (Fallback)
+                elif p.name in config:
+                    node = config[p.name]
+                    if isinstance(node, dict):
+                        val = node.get('value', "")
+                    else:
+                        val = node # Should not happen if strictly typed
+                else:
+                    val = ""
+                
+                # Round floats
+                if isinstance(val, (float, np.floating)):
                      val = round(val, 2)
+                
+                # Convert Bool to INT/String for easier reading? Or keep Bool.
                 row_data.append(val)
                 
             row_data.append(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             ws.append(row_data)
+            
+            # Styling
             current_row = ws.max_row
-            for cell in ws[current_row]:
+            thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+            
+            for i, cell in enumerate(ws[current_row]):
                 cell.border = thin_border
                 cell.alignment = Alignment(horizontal='center')
-            
-            ws.freeze_panes = "B2"
-            ws.auto_filter.ref = ws.dimensions
-            ws.column_dimensions['A'].width = 30
-            ws.column_dimensions[get_column_letter(len(row_data))].width = 20
-            
+                # Colorize based on column
+                # Col 0(A)=Score, 1(B)=File, 2(C)=ParamStart
+                if i >= 2 and i < len(row_data) - 1:
+                    p_idx = i - 2
+                    if p_idx < len(sorted_params):
+                        p = sorted_params[p_idx]
+                        hex_c = PySFXColors.get_excel_color(p.group)
+                        if hex_c:
+                            cell.fill = PatternFill(start_color=hex_c, end_color=hex_c, fill_type="solid")
+                            
             try:
                 wb.save(xlsx_path)
-                print(f"[{p_idx+1}/{num_files}] {filename} (Dur:{duration:.2f}s) -> Logged to XLSX")
-            except PermissionError:
-                print(f"[{p_idx+1}/{num_files}] WARNING: Excel Open! Log skipped. Close 'generation_log.xlsx'.")
+                print(f"[{p_idx+1}/{num_files}] {filename} -> Logged")
             except Exception as e:
-                print(f"[{p_idx+1}/{num_files}] ERROR: Excel: {e}")
+                print(f"[{p_idx+1}/{num_files}] Log Error: {e}")
+
+    # --- New Features ---
+
+    def get_random_config(self):
+        from pysfx_param_config import PySFXParams
+        config = {}
+        for p in PySFXParams.get_sorted_params():
+            config[p.name] = {
+                "value": p.default, 
+                "min": p.min if p.min is not None else 0,
+                "max": p.max if p.max is not None else 1,
+                "random": True 
+            }
+            if p.min is None: # Boolean
+                config[p.name]['value'] = random.choice([True, False])
+                config[p.name]['random'] = False
+        return config
+
+    def load_favorites(self, min_score=8):
+        """Load entries with Score >= min_score"""
+        xlsx_path = os.path.join(self.out_dir, "generation_log.xlsx")
+        if not os.path.exists(xlsx_path): return []
+        
+        import openpyxl
+        from pysfx_param_config import PySFXParams
+        
+        wb = openpyxl.load_workbook(xlsx_path, data_only=True)
+        ws = wb.active
+        
+        # Identify Header Map
+        headers = [c.value for c in ws[1]]
+        
+        if "Score" not in headers: return []
+        score_idx = headers.index("Score")
+        
+        favorites = []
+        sorted_params = PySFXParams.get_sorted_params()
+        
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            score = row[score_idx]
+            if not isinstance(score, (int, float)): continue
+            if score < min_score: continue
+            
+            entry = {}
+            # Parse params
+            for p in sorted_params:
+                if p.name in headers:
+                    p_idx = headers.index(p.name)
+                    val = row[p_idx]
+                    entry[p.name] = val
+            favorites.append((score, entry))
+        
+        # Sort by score desc
+        favorites.sort(key=lambda x: x[0], reverse=True)
+        return [x[1] for x in favorites]
+
+    def get_similar_config(self, entry):
+        from pysfx_param_config import PySFXParams
+        config = {}
+        variance = 0.1 # 10%
+        
+        for p in PySFXParams.get_sorted_params():
+            base_val = entry.get(p.name, p.default)
+            if base_val is None or base_val == "": base_val = p.default
+
+            if p.min is None:
+                config[p.name] = {"value": base_val, "random": False}
+                continue
+
+            total_range = (p.max - p.min)
+            delta = total_range * variance
+            v_min = max(p.min, base_val - delta)
+            v_max = min(p.max, base_val + delta)
+            
+            config[p.name] = {
+                "value": base_val,
+                "min": v_min,
+                "max": v_max,
+                "random": True
+            }
+        return config
+
+    def get_hybrid_config(self, entry_a, entry_b):
+        from pysfx_param_config import PySFXParams
+        config = {}
+        
+        files_discrete = ["OSC:A:Table", "OSC:B:Table", "NoteRange", "PitchType", "LFO_P_Type", "LFO_V_Type", "LFO_Pan_Type", "Chord"]
+        
+        for p in PySFXParams.get_sorted_params():
+            val_a = entry_a.get(p.name, p.default)
+            val_b = entry_b.get(p.name, p.default)
+            
+            if val_a is None: val_a = p.default
+            if val_b is None: val_b = p.default
+            
+            final_val = val_a
+            
+            # Boolean
+            if p.min is None:
+                final_val = random.choice([val_a, val_b])
+            # Discrete
+            elif any(k in p.name for k in files_discrete) or isinstance(p.default, int):
+                final_val = random.choice([val_a, val_b])
+            else:
+                # Average
+                final_val = (val_a + val_b) / 2.0
+                
+            config[p.name] = {"value": final_val, "random": False}
+            
+        return config

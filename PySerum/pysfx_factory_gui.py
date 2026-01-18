@@ -369,7 +369,22 @@ class FactoryGUI(ctk.CTk):
         # Run Button
         self.btn_run = ctk.CTkButton(bottom_frame, text="Start Production", command=self.start, 
                                      font=("Arial", 16, "bold"), height=40, fg_color="#e04f5f", hover_color="#c03f4f")
-        self.btn_run.pack(side="left", padx=20)
+        self.btn_run.pack(side="left", padx=10)
+        
+        # Random
+        self.btn_rnd = ctk.CTkButton(bottom_frame, text="Random Gen", command=self.start_random, 
+                                     font=("Arial", 12, "bold"), height=30, width=100, fg_color="#00BCD4")
+        self.btn_rnd.pack(side="left", padx=5)
+        
+        # Similar (Clone)
+        self.btn_sim = ctk.CTkButton(bottom_frame, text="Clone High", command=self.start_similar, 
+                                     font=("Arial", 12, "bold"), height=30, width=100, fg_color="#FFA000")
+        self.btn_sim.pack(side="left", padx=5)
+        
+        # Mix (Hybrid)
+        self.btn_mix = ctk.CTkButton(bottom_frame, text="Mix High", command=self.start_hybrid, 
+                                     font=("Arial", 12, "bold"), height=30, width=100, fg_color="#7B1FA2")
+        self.btn_mix.pack(side="left", padx=5)
         
         # Status Label (Animation)
         self.lbl_status = ctk.CTkLabel(bottom_frame, text="", font=("Courier New", 16, "bold"), text_color="#00ff00")
@@ -491,17 +506,11 @@ class FactoryGUI(ctk.CTk):
         if os.path.exists(SETTINGS_FILE): os.remove(SETTINGS_FILE)
         print("Settings reset. Please restart application.")
 
-    def start(self):
+    def start(self, override_config=None):
         if self.is_generating: return
         
         # 1. Save Last Session
         self.save_settings(SETTINGS_FILE)
-        
-        # 2. Auto-Save Snapshot for this batch
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        snapshot_file = os.path.join(SETTINGS_DIR, f"AutoSave_{timestamp}.json")
-        self.save_settings(snapshot_file)
-        print(f"Batch snapshot saved: {snapshot_file}")
         
         try:
             qty = int(self.ent_qty.get())
@@ -509,11 +518,15 @@ class FactoryGUI(ctk.CTk):
             print("Error: Invalid Quantity")
             return
 
-        config = {name: {k: v.get() for k, v in ctrl.items() if not k.startswith("ent") and k not in ("frame", "page")} 
-                  for name, ctrl in self.controls.items()}
+        if override_config:
+             config = override_config
+             print("Starting with Override Config (Random/Sim/Mix)")
+        else:
+             config = {name: {k: v.get() for k, v in ctrl.items() if not k.startswith("ent") and k not in ("frame", "page")} 
+                       for name, ctrl in self.controls.items()}
         
         self.btn_run.configure(state="disabled", text="Generating...")
-        self.lbl_status.configure(text="(--------)") # Reset anim
+        self.lbl_status.configure(text="Starting...")
         self.is_generating = True
         
         # Animation Frames
@@ -527,11 +540,6 @@ class FactoryGUI(ctk.CTk):
         self._animate_progress()
 
         def prog_cb(idx, total):
-            # This runs in Thread. Keep it minimal or Queue if complex.
-            # But we just animate in Main using _animate_progress independantly for smoother look?
-            # User wants "10 frame update". 
-            # If we update text based on file completion, it might be jerky.
-            # Let's just use the Indeterminate Animation loop requested.
             pass
 
         def run_thread():
@@ -546,14 +554,42 @@ class FactoryGUI(ctk.CTk):
         txt = self.anim_frames[self.anim_idx % len(self.anim_frames)]
         self.lbl_status.configure(text=txt)
         self.anim_idx += 1
-        
-        # 100ms update (approx 10fps)
         self.after(100, self._animate_progress)
 
     def finish(self):
         self.is_generating = False
         self.lbl_status.configure(text="Complete!")
-        self.btn_run.configure(state="normal", text="🚀 Start Production")
+        self.btn_run.configure(state="normal", text="Start Production")
+        
+    def start_random(self):
+        cfg = self.factory.get_random_config()
+        self.start(override_config=cfg)
+
+    def start_similar(self):
+        favs = self.factory.load_favorites(min_score=8)
+        if not favs:
+            print("No favorites found (Score >= 8)")
+            self.lbl_status.configure(text="No High Scores!")
+            return
+        
+        top = favs[:5] if len(favs) > 5 else favs
+        entry = random.choice(top)
+        
+        cfg = self.factory.get_similar_config(entry)
+        self.start(override_config=cfg)
+
+    def start_hybrid(self):
+        favs = self.factory.load_favorites(min_score=8)
+        if len(favs) < 2:
+            print("Need at least 2 favorites (Score >= 8)")
+            self.lbl_status.configure(text="Need 2+ Favs!")
+            return
+            
+        top = favs[:10] if len(favs) > 10 else favs
+        e1, e2 = random.sample(top, 2)
+        
+        cfg = self.factory.get_hybrid_config(e1, e2)
+        self.start(override_config=cfg)
 
 if __name__ == "__main__":
     app = FactoryGUI()
