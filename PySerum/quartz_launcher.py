@@ -7,7 +7,7 @@ class LauncherGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Quartz Suite Launcher")
-        self.geometry("400x450")
+        self.geometry("400x760")
         
         # Title
         ctk.CTkLabel(self, text="Quartz Audio Suite", font=("Arial", 24, "bold")).pack(pady=(30, 10))
@@ -16,10 +16,13 @@ class LauncherGUI(ctk.CTk):
         # Buttons
         self.add_btn("SFX Factory\n(Synthesizer)", "pysfx_factory_gui.py", "#e04f5f", "The Generative Synthesizer Engine")
         self.add_btn("WAV Transformer\n(Remixer)", "pysfx_transformer_gui.py", "#4f8fe0", "WAV Morphing & Resynthesis Tool")
+        self.add_btn("WAV Extractor\n(Analyzer)", "pysfx_ui_gui.py", "#e0cf4f", "Feature Extraction & Search")
         self.add_btn("Audio Normalizer\n(Post-Process)", "pysfx_normalizer_gui.py", "#4fe08f", "Auto Trim, Stretch & Envelope")
+        self.add_btn("Noise Masker\n(Texture Gen)", "pysfx_masker_gui.py", "#a04fe0", "Envelope Following Noise Shaper")
+        self.add_btn("Audio Slicer\n(Cutter)", "pysfx_slicer_gui.py", "#FF9800", "Auto Trim & Batch Slice Tool")
 
         # Footer
-        ctk.CTkLabel(self, text="v1.0.0", text_color="#555").pack(side="bottom", pady=10)
+        ctk.CTkLabel(self, text="v1.1.0", text_color="#555").pack(side="bottom", pady=10)
 
     def add_btn(self, text, script_name, color, desc):
         frame = ctk.CTkFrame(self, fg_color="transparent")

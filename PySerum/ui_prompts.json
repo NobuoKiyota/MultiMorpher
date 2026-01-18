@@ -1,0 +1,32 @@
+[
+    {
+        "category": "Cursor",
+        "type": "Point",
+        "min_ms": 30,
+        "max_ms": 200,
+        "target_freq": 1000.0,
+        "tolerance": 60,
+        "processing_reverb": 0.0,
+        "processing_release": 0
+    },
+    {
+        "category": "Decision",
+        "type": "Major",
+        "min_ms": 200,
+        "max_ms": 600,
+        "target_freq": 1500.0,
+        "tolerance": 70,
+        "processing_reverb": 0.2,
+        "processing_release": 300
+    },
+    {
+        "category": "Cancel",
+        "type": "Fall",
+        "min_ms": 100,
+        "max_ms": 400,
+        "target_freq": 500.0,
+        "tolerance": 50,
+        "processing_reverb": 0.0,
+        "processing_release": 100
+    }
+]

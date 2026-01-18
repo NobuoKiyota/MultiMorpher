@@ -1,0 +1,39 @@
+{
+    "input": "F:/Animal Voice Morpher/PySerum/Output/Quartz/Slice001",
+    "params": {
+        "NoiseType": {
+            "val": "Random",
+            "rnd": false
+        },
+        "MaskAmount": {
+            "val": "0.5",
+            "rnd": true,
+            "min": "0.3",
+            "max": "0.8"
+        },
+        "FadeLen": {
+            "val": "0.3",
+            "rnd": false,
+            "min": "0.0",
+            "max": "0.5"
+        },
+        "InvertProb": {
+            "val": "0.0",
+            "rnd": true,
+            "min": "0.0",
+            "max": "0.7"
+        },
+        "ReverseProb": {
+            "val": "0.0",
+            "rnd": true,
+            "min": "0.0",
+            "max": "0.5"
+        },
+        "FilterLinkProb": {
+            "val": "0.0",
+            "rnd": true,
+            "min": "0.0",
+            "max": "0.7"
+        }
+    }
+}
