@@ -45,15 +45,21 @@ class LauncherGUI(ctk.CTk):
     def launch(self, script_name):
         # run python script non-blocking
         if getattr(sys, 'frozen', False):
-            # If exe context (not yet), use subprocess with python
-            pass
+            # Running as compiled EXE
+            # Expecting sub-tools to be compiled as EXEs in the same folder
+            exe_name = script_name.replace(".py", ".exe")
+            target_path = os.path.join(os.path.dirname(sys.executable), exe_name)
+            cmd = [target_path]
+        else:
+            # Running as Python Script
+            cmd = [sys.executable, script_name]
         
-        cmd = [sys.executable, script_name]
         try:
-            # Use Popen to allow launcher to stay open or close?
-            # User probably wants launcher to stay open or allow multiple tools.
             subprocess.Popen(cmd, cwd=os.getcwd())
         except Exception as e:
+            print(f"Launch Error: {e}")
+            tk_msg = ctk.CTkToplevel()
+            ctk.CTkLabel(tk_msg, text=f"Error launching {script_name}:\n{e}").pack(padx=20, pady=20)
             print(f"Error launching {script_name}: {e}")
 
 if __name__ == "__main__":
