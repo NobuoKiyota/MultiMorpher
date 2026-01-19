@@ -52,6 +52,7 @@ class SFXReviewerApp(ctk.CTk):
         fr_left.grid_rowconfigure(1, weight=1)
         
         ctk.CTkButton(fr_left, text="Load Batch Folder", command=self.browse_folder).grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        ctk.CTkButton(fr_left, text="☁ Sync to Cloud", command=self.on_sync, fg_color="#009688", hover_color="#00796B").grid(row=3, column=0, padx=10, pady=20, sticky="ew")
         
         # Treeview style list
         # Using standard tk Treeview for columns (Score, Name)
@@ -363,6 +364,89 @@ class SFXReviewerApp(ctk.CTk):
             self.tree.focus(next_id)
             # This triggers on_select -> Play
 
+    def on_sync(self):
+        # Check config
+        config_path = "uploader_config.json"
+        target_path = ""
+        import json
+        
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                c = json.load(f)
+                target_path = c.get("upload_target", "")
+        
+        if not target_path or not os.path.exists(target_path):
+            # Ask user
+            tk.messagebox.showinfo("Setup", "Please select the Google Drive (Sync Target) folder.\nExample: G:\\My Drive\\SFX_Raw_Candidates")
+            target_path = filedialog.askdirectory(title="Select Sync Target Folder")
+            if not target_path: return
+            
+            # Save config
+            with open(config_path, "w") as f:
+                json.dump({"upload_target": target_path}, f)
+                
+        # Confirm
+        ans = tk.messagebox.askyesno("Sync to Drive", f"Upload High/Low assets to:\n{target_path}\n\nThis will COPY files. Continue?")
+        if not ans: return
+        
+        self.perform_sync(target_path)
+
+    def perform_sync(self, target_root):
+        # Structure:
+        # Target/HighScore
+        # Target/LowScore
+        
+        t_high = os.path.join(target_root, "HighScore")
+        t_low = os.path.join(target_root, "LowScore")
+        
+        if not os.path.exists(t_high): os.makedirs(t_high)
+        if not os.path.exists(t_low): os.makedirs(t_low)
+        
+        count = 0
+        
+        # 1. Copy High
+        if os.path.exists(self.dir_high):
+            for f in os.listdir(self.dir_high):
+                src = os.path.join(self.dir_high, f)
+                if os.path.isfile(src) and f.lower().endswith(".wav"):
+                     dst = os.path.join(t_high, f)
+                     if not os.path.exists(dst):
+                         shutil.copy2(src, dst)
+                         count += 1
+        
+        # 2. Copy Low
+        if os.path.exists(self.dir_low):
+            for f in os.listdir(self.dir_low):
+                src = os.path.join(self.dir_low, f)
+                if os.path.isfile(src) and f.lower().endswith(".wav"):
+                     dst = os.path.join(t_low, f)
+                     if not os.path.exists(dst):
+                         shutil.copy2(src, dst)
+                         count += 1
+                         
+        # 3. Copy/Update Manifest
+        # To avoid overwrite, we copy manifest as [PC]_[Folder]_manifest.xlsx
+        import socket
+        pc_name = socket.gethostname()
+        folder_name = os.path.basename(self.current_folder)
+        man_name = f"{pc_name}_{folder_name}_manifest.xlsx"
+        
+        src_man = self.excel_path
+        dst_man = os.path.join(target_root, man_name)
+        shutil.copy2(src_man, dst_man)
+        
+        tk.messagebox.showinfo("Sync Complete", f"Synced {count} audio files.\nManifest updated.")
+        
+        # Mark as synced? (Rename folder)
+        # Optional.
+
+    def on_closing(self):
+        # Check if unsynced? 
+        # For now just simple confirmation
+        # self.destroy()
+        if tk.messagebox.askokcancel("Quit", "Do you want to quit?"):
+             self.destroy()
+
 if __name__ == "__main__":
     import sys
     start_dir = None
@@ -370,4 +454,5 @@ if __name__ == "__main__":
         start_dir = sys.argv[1]
         
     app = SFXReviewerApp(start_dir)
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
