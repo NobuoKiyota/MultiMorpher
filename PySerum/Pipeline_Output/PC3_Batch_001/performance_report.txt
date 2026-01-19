@@ -1,0 +1,19 @@
+=== SFX Generation Performance Report ===
+Batch Name: PC3_Batch_001
+Date: 2026-01-20 01:21:38.883360
+Total Target: 50
+Final Count: 209
+Total Duration: 590.51 seconds (9.84 minutes)
+Average Time Per File: 2.83 seconds
+
+--- Step Details ---
+Step 1 (Factory): 556.29 seconds
+Step 2 (Transformer): 5.74 seconds
+Step 3 (Masker): 7.35 seconds
+Step 4 (Slicer): 8.89 seconds
+Step 5 (Normalizer): 11.67 seconds
+Step 5: Normalizer: 11.72 seconds
+Step 6: Log Aggregation: 0.40 seconds
+
+--- Efficiency Estimates ---
+Estimated time for 1000 files: 47.09 minutes
