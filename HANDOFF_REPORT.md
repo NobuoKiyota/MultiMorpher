@@ -1,50 +1,49 @@
-# Handoff Report: SFX Automation Project
-**Date:** 2026-01-19
-**To:** Workspace (Home)
+# Handoff Report: SFX Automation Project (Mass Production Ready)
+**Date:** 2026-01-20
+**To:** Workspace (Production Team)
 
-## 本日の成果
-1.  **完全自動パイプラインの構築 (`sfx_pipeline_manager.py`)**
-    *   Factory(生成) -> Transformer(加工) -> Masker(ノイズ) -> Slicer(カット) -> Normalizer(整音) を一気通貫で実行可能にしました。
-    *   **Metadata Tracking**: 加工前のパラメータも最終的なExcel(`final_manifest.xlsx`)に全て記録されるよう修正済み。
+## 本日の成果 (Mass Production Setup)
 
-2.  **専用ランチャーの実装 (`sfx_launcher_app.py`)**
-    *   **GUI操作**: コマンドライン不要で、生成数や複雑さを設定可能。
-    *   **Complexity設定**: `Light` (高速/シンプル) / `Normal` / `Heavy` (複雑/長時間) を選択可能にしました。これにより生成時間をコントロールできます。
-    *   **安全機能**: 生成失敗時にレビュー画面が開かないようロックをかけました。
+### 1. 3台体制での量産環境構築
+*   **インストーラー整備**: `install_dependencies.bat` を強化。
+    *   Pythonのパスが見つからない場合の診断機能を追加。
+    *   `python-3.12.7-amd64.exe` でのセットアップ手順を確立（**Add to PATH** 必須）。
+*   **PC間競合の回避**:
+    *   Launcher: Batch Name を `[HostName]_Batch_[Date]` 形式で自動生成するように変更。
+    *   これにより、3台のPCで同時に「Run」を押してもフォルダ名が被りません。
 
-3.  **高速レビュー環境 (`sfx_reviewer_app.py`)**
-    *   ランチャーから直接起動可能。
-    *   テンキー操作でサクサク採点＆フォルダ振り分けが可能。
+### 2. データ集約フローの確立 (Sync to Cloud)
+*   Reviewerアプリに **[☁ Sync to Cloud]** ボタンを実装しました。
+*   ボタン一発で以下の処理を行います：
+    1.  `HighScore` (8-10点) のWAVファイルを、Google Drive の中間プール (`SFX_Raw_Candidates`) へコピー。
+    2.  `LowScore` (1-3点) のWAVファイルを、別フォルダ (`SFX_Negative_Samples`) へコピー。
+    3.  **Excelログ**: `[PC名]_[Batch名]_manifest.xlsx` にリネームしてコピー（情報の上書き防止）。
+*   **前回状態の記憶**: Launcher（Batch Name）と Reviewer（開いたフォルダ）の入力状態を保持するようにしました。
 
-## 自宅作業への引き継ぎ手順
+## 正しい運用フロー (3-PC Workflow)
 
-### 1. 環境同期
-自宅PCにてリポジトリをPullしてください。
-```powershell
-git pull
-```
+### Phase 1: Local Generation & Review
+各PCローカルで行います。
+1.  **Launch**: `launch_gui.bat` (デスクトップショートカット) でランチャー起動。
+2.  **Generate**: "Run Pipeline" で生成 (例: `PC1_Batch_20260120...`)。
+3.  **Review**: 生成完了後、"Open Reviewer" で採点 (Hotkeys: `.` to Play, `Numpad 1-9` to Score).
+    *   *※この段階ではまだタグ付けは不要。単に「音として良いか悪いか」だけを判断。*
 
-### 2. コンテキスト同期
-Antigravity (AI) に以下のプロンプトを投げてください。
-> 「`F:\Animal Voice Morpher\task.md` と `F:\Animal Voice Morpher\HANDOFF_REPORT.md` を読んで現状を把握してください」
+### Phase 2: Cloud Sync (Data Pool)
+1.  Reviewer左下の **[☁ Sync to Cloud]** をクリック。
+2.  (初回のみ) Google Drive上の **「中間プールフォルダ」** (例: `SFX_Raw_Candidates`) を選択。
+3.  データがクラウドに集約されます。
 
-### 3. 次のアクション
-本日の作業で「ツール」は完成しました。次は「量産」です。
-
-*   **大量生成の実施**:
-    *   `python sfx_launcher_app.py` を起動。
-    *   **設定**: Total=1000, Source=50, Complexity=Heavy (またはNormal)
-    *   **Batch Name**: "Home_Run_001" など
-    *   (時間がかかるため、寝る前などの実行推奨)
-
-*   **学習データの蓄積**:
-    *   生成完了後、緑色のボタンでレビュー画面を開き、気に入った音をHigh(8-10点)、不要な音をLow(1-3点)に振り分けてください。
-    *   このデータが将来のAIモデル学習の資源となります。
+### Phase 3: Final Annotation (Tagging)
+人間（管理者）が時間のある時に実施。
+1.  `Quartz Suite` の `WAV Extractor` を起動。
+2.  Inputとして `SFX_Raw_Candidates` を指定。
+3.  タグ・コメントを付与し、正規の **`QuartzAnnotation`** フォルダへエクスポート。
 
 ## ファイル構成
-*   `F:\Animal Voice Morpher\PySerum\sfx_launcher_app.py` : **(EntryPoint)** 起動用GUI
-*   `F:\Animal Voice Morpher\PySerum\sfx_reviewer_app.py` : レビュー用GUI
-*   `F:\Animal Voice Morpher\PySerum\sfx_pipeline_manager.py` : 自動化コア
-*   `F:\Animal Voice Morpher\task.md` : 全体進捗
+*   `F:\Animal Voice Morpher\PySerum\sfx_launcher_app.py` : **(EntryPoint)** 量産用ランチャー
+*   `F:\Animal Voice Morpher\PySerum\sfx_reviewer_app.py` : レビュー＆Syncアプリ
+*   `F:\Animal Voice Morpher\PySerum\install_dependencies.bat` : 新PCセットアップ用
+*   `F:\Animal Voice Morpher\PySerum\launch_gui.bat` : デスクトップ用起動スクリプト
 
-以上、お疲れ様でした。自宅環境でもスムーズに作業に入れます。
+以上、量産体制は整いました。各PCでの稼働をお願いします。

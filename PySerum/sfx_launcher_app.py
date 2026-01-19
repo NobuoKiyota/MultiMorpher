@@ -23,6 +23,16 @@ class SFXLauncherApp(ctk.CTk):
         self.running = False
         self.last_batch_path = ""
         
+        self.last_batch_name_input = ""
+        # Load State
+        import json
+        try:
+             if os.path.exists("last_launcher_state.json"):
+                 with open("last_launcher_state.json", "r") as f:
+                     state = json.load(f)
+                     self.last_batch_name_input = state.get("last_batch_name", "")
+        except: pass
+
         self._init_ui()
         
     def _init_ui(self):
@@ -53,7 +63,7 @@ class SFXLauncherApp(ctk.CTk):
         
         # 4. Batch Name
         ctk.CTkLabel(fr_config, text="Batch Name (Optional):").grid(row=3, column=0, padx=10, pady=5, sticky="w")
-        self.var_name = ctk.StringVar(value="")
+        self.var_name = ctk.StringVar(value=self.last_batch_name_input)
         ctk.CTkEntry(fr_config, textvariable=self.var_name, placeholder_text="Auto-Generated if empty").grid(row=3, column=1, padx=10, pady=5, sticky="ew")
         
         # --- Action Area ---
@@ -116,6 +126,14 @@ class SFXLauncherApp(ctk.CTk):
              }
              
         self.running = True
+        
+        # Save State
+        try:
+            import json
+            with open("last_launcher_state.json", "w") as f:
+                json.dump({"last_batch_name": name if name else ""}, f)
+        except: pass
+        
         self.btn_run.configure(state="disabled")
         self.btn_review.configure(state="disabled")
         self.log(f"Starting Batch... Total={total}, Source={source}, Mode={comp}")
