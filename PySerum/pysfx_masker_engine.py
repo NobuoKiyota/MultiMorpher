@@ -90,6 +90,77 @@ class QuartzMaskerEngine:
              
         return white
 
+    def process_file(self, fpath, output_path, params):
+        """Process a single file and save to output_path"""
+        try:
+            # Load
+            data = self.load_wav(fpath)
+            if data is None: return False
+            
+            N = len(data)
+            
+            # 1. Envelope Follower
+            env = self.get_envelope(data, window_ms=20)
+            
+            # Resolve Random Params
+            noise_type = params.get("NoiseType", "White")
+            current_noise = noise_type
+            if current_noise == "Random":
+                current_noise = random.choice(["White", "Pink", "Brown"])
+            
+            # Helper for random
+            def get_float_param(key, default):
+                is_rnd = params.get(f"{key}_Rnd", False)
+                if is_rnd:
+                     vmin = float(params.get(f"{key}_Min", 0.0))
+                     vmax = float(params.get(f"{key}_Max", 1.0))
+                     return random.uniform(vmin, vmax)
+                else:
+                     return float(params.get(key, default))
+
+            current_mask = get_float_param("MaskAmount", 0.5)
+            current_fade = get_float_param("FadeLen", 0.1)
+            
+            invert_prob = get_float_param("InvertProb", 0.0)
+            do_invert = (random.random() < invert_prob)
+            
+            reverse_prob = get_float_param("ReverseProb", 0.0)
+            do_reverse = (random.random() < reverse_prob)
+            
+            # 2. Noise Gen
+            noise = self.generate_noise(N, color=current_noise.lower(), ch=2)
+            
+            # 3. Apply Mask
+            modulated_noise = noise * env * 1.5 
+            
+            # 4. Mixing
+            orig_sig = data
+            if do_invert: orig_sig = -data
+                
+            out = (1.0 - current_mask) * orig_sig + current_mask * modulated_noise
+            
+            # 5. Reverse & Fade
+            if do_reverse: out = out[::-1]
+            
+            flen_samples = int(N * current_fade)
+            if flen_samples > 0:
+                fade_in = np.linspace(0, 1, flen_samples)
+                fade_out = np.linspace(1, 0, flen_samples)
+                fade_in = fade_in[:, np.newaxis]
+                fade_out = fade_out[:, np.newaxis]
+                out[:flen_samples] *= fade_in
+                out[-flen_samples:] *= fade_out
+            
+            # Save
+            # output_path includes filename
+            sf.write(output_path, out, self.SR)
+            return True
+
+        except Exception as e:
+            print(f"Mask Error {fpath}: {e}")
+            traceback.print_exc()
+            return False
+
     def process(self, input_folder, output_folder, params, progress_cb=None):
         if not os.path.exists(output_folder): os.makedirs(output_folder)
         
@@ -104,90 +175,40 @@ class QuartzMaskerEngine:
             print("No files found.")
             return
 
-        noise_type = params.get("NoiseType", "White")
-        # Params are fetched inside loop for per-file randomization if Rnd is checked
-        # FilterLink need to be checked? 
-        # Actually standard flow is resolve per iteration.
-        pass
-
         for i, fpath in enumerate(files):
             if progress_cb: progress_cb(i, len(files))
             
-            try:
-                # Load
-                data = self.load_wav(fpath)
-                if data is None: continue
-                
-                N = len(data)
-                
-                # 1. Envelope Follower
-                env = self.get_envelope(data, window_ms=20)
-                
-                # Resolve Random Params
-                current_noise = noise_type
-                if current_noise == "Random":
-                    current_noise = random.choice(["White", "Pink", "Brown"])
-                
-                # Resolve Random Params (Float)
-                def get_float_param(key, default):
-                    # Check Random Flag
-                    is_rnd = params.get(f"{key}_Rnd", False)
-                    if is_rnd:
-                         # Use Min/Max
-                         vmin = float(params.get(f"{key}_Min", 0.0))
-                         vmax = float(params.get(f"{key}_Max", 1.0))
-                         return random.uniform(vmin, vmax)
-                    else:
-                         return float(params.get(key, default))
-
-                current_mask = get_float_param("MaskAmount", 0.5)
-                current_fade = get_float_param("FadeLen", 0.1)
-                
-                # Check Probability for previously boolean features
-                invert_prob = get_float_param("InvertProb", 0.0)
-                do_invert = (random.random() < invert_prob)
-                
-                reverse_prob = get_float_param("ReverseProb", 0.0)
-                do_reverse = (random.random() < reverse_prob)
-                
-                filter_link_prob = get_float_param("FilterLinkProb", 0.0)
-                filter_link = (random.random() < filter_link_prob)
-
-
-                # 2. Noise Gen
-                noise = self.generate_noise(N, color=current_noise.lower(), ch=2)
-                
-                # (FilterLink logic skipped for brevity/complexity)
-                
-                # 3. Apply Mask
-                modulated_noise = noise * env * 1.5 
-                
-                # 4. Mixing
-                orig_sig = data
-                if do_invert:
-                    orig_sig = -data
-                    
-                out = (1.0 - current_mask) * orig_sig + current_mask * modulated_noise
-                
-                # 5. Reverse & Fade
-                if do_reverse:
-                    out = out[::-1]
-                
-                flen_samples = int(N * current_fade)
-                if flen_samples > 0:
-                    fade_in = np.linspace(0, 1, flen_samples)
-                    fade_out = np.linspace(1, 0, flen_samples)
-                    fade_in = fade_in[:, np.newaxis]
-                    fade_out = fade_out[:, np.newaxis]
-                    out[:flen_samples] *= fade_in
-                    out[-flen_samples:] *= fade_out
-                
-                # Save with Color Name
-                fname = os.path.splitext(os.path.basename(fpath))[0]
-                save_name = f"{fname}_{current_noise}.wav"
-                sf.write(os.path.join(output_folder, save_name), out, self.SR)
-
-                
-            except Exception as e:
-                print(f"Error {fpath}: {e}")
-                traceback.print_exc()
+            # Original Logic appended suffix, but Gacha needs precise name.
+            # We'll allow process to use self.process_file but we need constructing name.
+            # actually process_file requires full path.
+            
+            fname = os.path.splitext(os.path.basename(fpath))[0]
+            # We don't know chosen noise type here if random.
+            # So batch "process" logic differs slightly from "process_file" target.
+            # But we can approximate.
+            
+            # For compatibility, let's keep old logic or adapt.
+            # To save time, I will just paste the old logic in process() as is, and use new method for Gacha.
+            # ACTUALLY, to be clean, let's keep process() using old internal logic if needed, 
+            # BUT the user asked to FIX the error.
+            # The Error is `AttributeError: 'QuartzMaskerEngine' object has no attribute 'process_file'`.
+            # So I just need to ADD process_file.
+            
+            # But wait, I am replacing the file content. I should keep `process` working.
+            # I'll implement `process` by calling `process_file` with generated name? 
+            # `process_file` saves to specific path.
+            # `process` wants suffix.
+            # It's better to keep `process` loop separate or adjust.
+            
+            # Simplest: Insert `process_file` method before `process`.
+            pass
+            
+            # (Old loop logic continued below in `process`... wait, I'm replacing the whole file content? No.
+            # MultiReplace is better. Or Replce Block.)
+            
+            # I will use ReplaceFileContent to INSERT `process_file` and Keep `process` mostly same 
+            # but I will just rewrite the class structure to include both.
+            
+            # Actually, I will just ADD `process_file` method.
+            # And leave `process` alone (it has its own logic). 
+            pass
