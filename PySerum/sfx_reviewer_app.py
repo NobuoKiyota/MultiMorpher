@@ -98,11 +98,11 @@ class SFXReviewerApp(ctk.CTk):
         self.chk_auto.select()
         self.chk_auto.pack(anchor="w", pady=5)
         
-        ctk.CTkButton(fr_btns, text="PLAY (Space)", command=self.play_audio, fg_color="green", width=120).pack(pady=10)
+        ctk.CTkButton(fr_btns, text="PLAY (.)", command=self.play_audio, fg_color="green", width=120).pack(pady=10)
         
         # --- Binds ---
         self.bind("<Key>", self.on_key)
-        self.bind("<space>", lambda e: self.play_audio())
+        self.bind(".", lambda e: self.play_audio())
         
     def toggle_auto(self):
         self.auto_advance = self.chk_auto.get()
