@@ -27,7 +27,13 @@ class SFXPipeline:
         self.slicer = QuartzSlicerEngine()
         self.normalizer = QuartzNormalizerEngine()
         
-    def run_pipeline(self, batch_name, total_count=100):
+    def run_pipeline(self, batch_name, total_count=100, source_count=None, factory_settings=None):
+        """
+        Full Pipeline.
+        source_count: Explicit number of Step 1 files. If None, calculated from total_count.
+        factory_settings: Dict of param overrides for Factory (e.g. {'Duration': 1.0, 'VoiceCount': 1})
+        """
+        
         # Setup Directories
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if not batch_name: batch_name = f"Batch_{timestamp}"
@@ -44,15 +50,33 @@ class SFXPipeline:
             
         print(f"=== SFX Pipeline Started: {batch_name} (Overview Target: {total_count}) ===")
         
+        t_start_total = time.time()
+        step_times = {}
+
         # --- Step 1: Factory Generation ---
         # Scale input files for variance
-        count_step1 = max(10, int(total_count * 0.2)) 
-        if count_step1 > 200: count_step1 = 200 # Cap base material if huge
+        if source_count is None:
+            count_step1 = max(10, int(total_count * 0.2)) 
+            if count_step1 > 200: count_step1 = 200 # Cap base material if huge
+        else:
+            count_step1 = int(source_count)
         
         print(f"--- Step 1: Factory Generation ({count_step1}) ---")
+        t_s1 = time.time()
+        
         self.factory.out_dir = dir_step1
         config = self.factory.get_random_config()
+        
+        # Apply Overrides
+        if factory_settings:
+            for k, v in factory_settings.items():
+                if k in config:
+                    config[k]["value"] = v
+                    print(f"  > Override {k}: {v}")
+        
         self.factory.run_advanced_batch(config, num_files=count_step1)
+        
+        step_times["Step 1 (Factory)"] = time.time() - t_s1
         
         # Load Step 1 Parameters into Memory
         # Map: Filename -> ParamDict
@@ -79,6 +103,8 @@ class SFXPipeline:
 
         # --- Step 2: Transformer ---
         print(f"--- Step 2: Transformer ({total_count}) ---")
+        t_s2 = time.time()
+        
         t_params = {
             "Iteration": total_count,
             "MixCount_Rnd": True, "MixCount_Min": 1, "MixCount_Max": 2, # Keep low for clarity
@@ -90,8 +116,11 @@ class SFXPipeline:
         step2_logs = self.transformer.process_tracked(dir_step1, dir_step2, t_params, progress_cb=lambda i,t: print(f"Trans {i}/{t}", end="\r"))
         print("")
         
+        step_times["Step 2 (Transformer)"] = time.time() - t_s2
+        
         # --- Step 3: Masker ---
         print(f"--- Step 3: Masker ---")
+        t_s3 = time.time()
         m_params = {
             "NoiseType": "Random",
             "MaskAmount_Rnd": True, "MaskAmount_Min": 0.1, "MaskAmount_Max": 0.4,
@@ -103,8 +132,12 @@ class SFXPipeline:
         self.masker.process(dir_step2, dir_step3, m_params, progress_cb=lambda i,t: print(f"Mask {i}/{t}", end="\r"))
         print("")
         
+        step_times["Step 3 (Masker)"] = time.time() - t_s3
+        
         # --- Step 4: Slicer ---
         print(f"--- Step 4: Slicer ---")
+        t_s4 = time.time()
+        
         s_params = {
             "threshold_db": -50,
             "min_interval_ms": 500,
@@ -114,17 +147,26 @@ class SFXPipeline:
         self.slicer.process_folder(dir_step3, dir_step4, s_params, progress_cb=lambda i,t: print(f"Slice {i}/{t}", end="\r"))
         print("")
         
+        step_times["Step 4 (Slicer)"] = time.time() - t_s4
+        
         # --- Step 5: Normalizer ---
         print(f"--- Step 5: Normalizer ---")
+        t_s5 = time.time()
+        
         n_params = {
             "target_time_min": 1.0, "target_time_max": 5.0,
             "attack_rate_min": 0.01, "attack_rate_max": 0.05,
             "release_rate_min": 0.05, "release_rate_max": 0.3
         }
         self.normalizer.process_folder(dir_step4, dir_step5, n_params, progress_cb=lambda i,t: print(f"Norm {i}/{t}", end="\r"))
+        
+        step_times["Step 5 (Normalizer)"] = time.time() - t_s5
         print("\n\n=== Pipeline Complete ===")
+        t_end_step = time.time()
+        step_times["Step 5: Normalizer"] = t_end_step - t_s5
         
         # --- Trace & Aggregate Logs ---
+        t_start_step = time.time()
         # Goal: For every file in Final (Stef 5), trace back to Step 1 and gather params.
         
         final_files = glob.glob(os.path.join(dir_step5, "*.wav"))
@@ -257,6 +299,34 @@ class SFXPipeline:
             
         final_logger.save()
         print(f"Manifest Saved: {os.path.join(dir_step5, 'final_manifest.xlsx')}")
+        t_end_step = time.time()
+        step_times["Step 6: Log Aggregation"] = t_end_step - t_start_step
+
+        # --- Performance Report ---
+        t_end_total = time.time()
+        dur_total = t_end_total - t_start_total
+        
+        final_count = len(final_files)
+        avg_per_item = dur_total / final_count if final_count > 0 else 0
+        
+        report_path = os.path.join(base_dir, "performance_report.txt")
+        with open(report_path, "w", encoding='utf-8') as f:
+            f.write(f"=== SFX Generation Performance Report ===\n")
+            f.write(f"Batch Name: {batch_name}\n")
+            f.write(f"Date: {datetime.datetime.now()}\n")
+            f.write(f"Total Target: {total_count}\n")
+            f.write(f"Final Count: {final_count}\n")
+            f.write(f"Total Duration: {dur_total:.2f} seconds ({dur_total/60:.2f} minutes)\n")
+            f.write(f"Average Time Per File: {avg_per_item:.2f} seconds\n\n")
+            
+            f.write("--- Step Details ---\n")
+            for step_key, dur in step_times.items():
+                f.write(f"{step_key}: {dur:.2f} seconds\n")
+            
+            f.write("\n--- Efficiency Estimates ---\n")
+            f.write(f"Estimated time for 1000 files: {(avg_per_item * 1000) / 60:.2f} minutes\n")
+
+        print(f"Performance Report Saved: {report_path}")
 
 if __name__ == "__main__":
     import argparse

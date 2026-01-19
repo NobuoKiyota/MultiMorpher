@@ -11,7 +11,7 @@ ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
 class SFXReviewerApp(ctk.CTk):
-    def __init__(self):
+    def __init__(self, start_path=None):
         super().__init__()
         self.title("SFX Factory Reviewer")
         self.geometry("1000x800")
@@ -26,6 +26,9 @@ class SFXReviewerApp(ctk.CTk):
         self.auto_advance = True
         
         self._init_ui()
+        
+        if start_path and os.path.exists(start_path):
+             self.load_batch(start_path)
         
     def _init_ui(self):
         # Layout: Left (List 300px), Right (Detail)
@@ -338,5 +341,10 @@ class SFXReviewerApp(ctk.CTk):
             # This triggers on_select -> Play
 
 if __name__ == "__main__":
-    app = SFXReviewerApp()
+    import sys
+    start_dir = None
+    if len(sys.argv) > 1:
+        start_dir = sys.argv[1]
+        
+    app = SFXReviewerApp(start_dir)
     app.mainloop()

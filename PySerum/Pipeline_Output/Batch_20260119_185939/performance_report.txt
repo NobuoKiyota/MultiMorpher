@@ -1,0 +1,19 @@
+=== SFX Generation Performance Report ===
+Batch Name: Batch_20260119_185939
+Date: 2026-01-19 19:01:35.542002
+Total Target: 20
+Final Count: 47
+Total Duration: 115.62 seconds (1.93 minutes)
+Average Time Per File: 2.46 seconds
+
+--- Step Details ---
+Step 1 (Factory): 88.41 seconds
+Step 2 (Transformer): 5.27 seconds
+Step 3 (Masker): 5.12 seconds
+Step 4 (Slicer): 9.45 seconds
+Step 5 (Normalizer): 7.06 seconds
+Step 5: Normalizer: 7.08 seconds
+Step 6: Log Aggregation: 0.22 seconds
+
+--- Efficiency Estimates ---
+Estimated time for 1000 files: 41.00 minutes
