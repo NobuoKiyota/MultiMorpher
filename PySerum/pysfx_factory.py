@@ -452,9 +452,9 @@ class PyQuartzFactory:
                 # Colorize based on column
                 # Col 0(A)=Score, 1(B)=File, 2(C)=ParamStart
                 if i >= 2 and i < len(row_data) - 1:
-                    p_idx = i - 2
-                    if p_idx < len(sorted_params):
-                        p = sorted_params[p_idx]
+                    param_idx = i - 2
+                    if param_idx < len(sorted_params):
+                        p = sorted_params[param_idx]
                         hex_c = PySFXColors.get_excel_color(p.group)
                         if hex_c:
                             cell.fill = PatternFill(start_color=hex_c, end_color=hex_c, fill_type="solid")
