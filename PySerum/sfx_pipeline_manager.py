@@ -139,9 +139,9 @@ class SFXPipeline:
         t_s4 = time.time()
         
         s_params = {
-            "threshold_db": -50,
-            "min_interval_ms": 500,
-            "min_duration_ms": 500, 
+            "threshold_db": -60,  # Lower threshold to keep quiet parts (prevent tremolo cuts)
+            "min_interval_ms": 200, # Min silence gap to consider split
+            "min_duration_ms": 1000, # Minimum file length (ignore short fragments)
             "pad_ms": 100
         }
         self.slicer.process_folder(dir_step3, dir_step4, s_params, progress_cb=lambda i,t: print(f"Slice {i}/{t}", end="\r"))
