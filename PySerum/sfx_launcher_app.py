@@ -50,7 +50,7 @@ class SFXLauncherApp(ctk.CTk):
         ctk.CTkEntry(fr_config, textvariable=self.var_total).grid(row=0, column=1, padx=10, pady=5, sticky="ew")
         
         # 2. Source Count
-        ctk.CTkLabel(fr_config, text="Source Count (Step 1):").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        ctk.CTkLabel(fr_config, text="Asset Pool Size (Factory):").grid(row=1, column=0, padx=10, pady=5, sticky="w")
         self.var_source = ctk.StringVar(value="5")
         ctk.CTkEntry(fr_config, textvariable=self.var_source).grid(row=1, column=1, padx=10, pady=5, sticky="ew")
         
