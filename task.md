@@ -21,12 +21,14 @@
 - [x] Implement Scoring Logic (User Score, Hotkeys 0-9)
 - [x] Implement File Management (Move to High/Low folders, update Excel)
 - [x] Verify GUI workflow (User Verified)
+- [x] Create `sfx_launcher_app.py` for integrated workflow (Config -> Run -> Review)
 
 ## Phase 4: Integration & Optimization
-- [ ] Run full 1000-sample batch test
-- [ ] Optimize performance (Threading/Multiprocessing if needed)
+- [x] Optimize performance (Implemented "Complexity" presets in Launcher to control speed)
+- [ ] Run full 1000-sample batch test (Ready to run at Home/Nightly)
 - [ ] Analyze Feedback Loop (Optional: Implement Logic to improve Factory based on High Scores)
 
 ## Phase 5: Documentation & Handoff
+- [x] Create Handoff Report (`HANDOFF_REPORT.md`)
 - [ ] Update `README.md` / `Workflow.md`
 - [ ] Walkthrough Video/Artifact
