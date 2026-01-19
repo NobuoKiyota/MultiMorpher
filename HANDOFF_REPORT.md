@@ -26,7 +26,7 @@ git pull
 
 ### 2. コンテキスト同期
 Antigravity (AI) に以下のプロンプトを投げてください。
-> 「`z:\MultiMorpher\task.md` と `z:\MultiMorpher\HANDOFF_REPORT.md` を読んで現状を把握してください」
+> 「`F:\Animal Voice Morpher\task.md` と `F:\Animal Voice Morpher\HANDOFF_REPORT.md` を読んで現状を把握してください」
 
 ### 3. 次のアクション
 本日の作業で「ツール」は完成しました。次は「量産」です。
@@ -42,9 +42,9 @@ Antigravity (AI) に以下のプロンプトを投げてください。
     *   このデータが将来のAIモデル学習の資源となります。
 
 ## ファイル構成
-*   `z:\MultiMorpher\PySerum\sfx_launcher_app.py` : **(EntryPoint)** 起動用GUI
-*   `z:\MultiMorpher\PySerum\sfx_reviewer_app.py` : レビュー用GUI
-*   `z:\MultiMorpher\PySerum\sfx_pipeline_manager.py` : 自動化コア
-*   `z:\MultiMorpher\task.md` : 全体進捗
+*   `F:\Animal Voice Morpher\PySerum\sfx_launcher_app.py` : **(EntryPoint)** 起動用GUI
+*   `F:\Animal Voice Morpher\PySerum\sfx_reviewer_app.py` : レビュー用GUI
+*   `F:\Animal Voice Morpher\PySerum\sfx_pipeline_manager.py` : 自動化コア
+*   `F:\Animal Voice Morpher\task.md` : 全体進捗
 
 以上、お疲れ様でした。自宅環境でもスムーズに作業に入れます。
