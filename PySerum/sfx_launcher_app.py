@@ -141,8 +141,10 @@ class SFXLauncherApp(ctk.CTk):
             
             if name is None:
                 import datetime
+                import socket
+                hostname = socket.gethostname()
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                name = f"Batch_{timestamp}"
+                name = f"{hostname}_Batch_{timestamp}"
             
             self.last_batch_path = os.path.join(self.pipeline.root_dir, name, "05_Final_Normalized")
             

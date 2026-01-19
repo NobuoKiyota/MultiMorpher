@@ -29,6 +29,17 @@ class SFXReviewerApp(ctk.CTk):
         
         if start_path and os.path.exists(start_path):
              self.load_batch(start_path)
+        else:
+            # Try load last state
+            import json
+            try:
+                if os.path.exists("last_state.json"):
+                    with open("last_state.json", "r") as f:
+                        state = json.load(f)
+                        last = state.get("last_reviewer_path")
+                        if last and os.path.exists(last):
+                            self.load_batch(last)
+            except: pass
         
     def _init_ui(self):
         # Layout: Left (List 300px), Right (Detail)
@@ -114,6 +125,18 @@ class SFXReviewerApp(ctk.CTk):
             
     def load_batch(self, folder):
         self.current_folder = folder
+        
+        # Save state
+        import json
+        try:
+            state = {}
+            if os.path.exists("last_state.json"):
+                with open("last_state.json", "r") as f:
+                    state = json.load(f)
+            state["last_reviewer_path"] = folder
+            with open("last_state.json", "w") as f:
+                json.dump(state, f)
+        except: pass
         
         # Look for Excel
         xls = os.path.join(folder, "final_manifest.xlsx")
