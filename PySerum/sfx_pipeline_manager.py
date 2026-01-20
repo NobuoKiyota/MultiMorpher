@@ -179,6 +179,23 @@ class SFXPipeline:
         # --- Phase 2: Production Loop ---
         print(f"--- Phase 2: Production Loop (Target: {total_count}) ---")
         
+        # Check existing files to determine start index
+        start_index = 1
+        existing_files = glob.glob(os.path.join(dir_final, "Gen_*_*.wav"))
+        if existing_files:
+            max_idx = 0
+            for f in existing_files:
+                # Expecting Gen_XXXX_...
+                base = os.path.basename(f)
+                try:
+                    parts = base.split("_")
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        idx = int(parts[1])
+                        if idx > max_idx: max_idx = idx
+                except: pass
+            start_index = max_idx + 1
+            print(f"Existing files detected. Starting sequence from #{start_index:04d}")
+        
         generated_count = 0
         final_logs = []
         
@@ -197,6 +214,7 @@ class SFXPipeline:
                 processing_details = {} # Store runtime params here
                 
                 # Copy start file to temp
+                # Temp working name doesn't matter much, but keep it unique per run
                 work_file = os.path.join(dir_temp, f"work_{generated_count}.wav")
                 shutil.copy2(current_file, work_file)
                 current_file = work_file
@@ -251,7 +269,9 @@ class SFXPipeline:
                         pass # Fail? Keep current.
                         
                 # 3. Final Normalize
-                final_name = f"Gen_{generated_count+1:04d}_L{loop_count}.wav"
+                # Use start_index + generated_count to ensure unique sequence across runs
+                current_seq_id = start_index + generated_count
+                final_name = f"Gen_{current_seq_id:04d}_L{loop_count}.wav"
                 final_out = os.path.join(dir_final, final_name)
                 n_params = {"target_time_min": 0.5, "target_time_max": 3.0} 
                 if "Normalizer" in effects_config:
@@ -304,7 +324,7 @@ class SFXPipeline:
                 
         print("\n=== Pipeline Complete ===")
         
-        # Manifest
+        # Manifest Logic: Append if exists
         manifest_path = os.path.join(dir_final, "final_manifest.xlsx")
         
         # Collect all unique keys for header
@@ -317,21 +337,59 @@ class SFXPipeline:
                 if k not in seen:
                     all_keys.append(k)
                     seen.add(k)
+        
+        if os.path.exists(manifest_path):
+            try:
+                wb = openpyxl.load_workbook(manifest_path)
+                ws = wb.active
+                # If appending, we assume headers roughly match or we just append rows based on CURRENT keys.
+                # Ideally we should map to existing headers.
+                existing_headers = [c.value for c in ws[1]]
+                
+                # Update header list if new keys introduced?
+                # For simplicity in this fix, we append new keys to the end of header row if missing
+                # But safer to just map what we have to existing, and append extras.
+                
+                for k in all_keys:
+                    if k not in existing_headers:
+                        # Add new header column
+                        ws.cell(row=1, column=len(existing_headers)+1, value=k)
+                        existing_headers.append(k)
+                
+                # Now append data mapped to headers
+                for l in final_logs:
+                    row = []
+                    for h in existing_headers:
+                        row.append(l.get(h, ""))
+                    ws.append(row)
                     
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.append(all_keys)
-        
-        for l in final_logs:
-            row = [l.get(k, "") for k in all_keys]
-            ws.append(row)
+            except Exception as e:
+                print(f"Warning: Failed to append manifest, creating new. Error: {e}")
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.append(all_keys)
+                for l in final_logs:
+                    row = [l.get(k, "") for k in all_keys]
+                    ws.append(row)
+        else:
+            # Create New
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.append(all_keys)
+            for l in final_logs:
+                row = [l.get(k, "") for k in all_keys]
+                ws.append(row)
             
-        wb.save(manifest_path)
+        try:
+            wb.save(manifest_path)
+        except Exception as e:
+            print(f"Error Saving Manifest: {e}")
         
-        # Performance Report
+        # Performance Report (Append or Write?)
+        # Report is simple txt, overwrite is fine or append. Let's append with timestamp.
         dur_total = time.time() - t_start_total
-        with open(os.path.join(base_dir, "performance_report.txt"), "w") as f:
-             f.write(f"Total: {total_count}\nTime: {dur_total:.2f}s\n")
+        with open(os.path.join(base_dir, "performance_report.txt"), "a") as f:
+             f.write(f"Run {datetime.datetime.now()}: Generated {generated_count} files in {dur_total:.2f}s\n")
         print(f"Report saved to {base_dir}")
 
     def _load_factory_log(self, path):

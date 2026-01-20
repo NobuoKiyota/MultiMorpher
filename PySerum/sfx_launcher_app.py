@@ -244,7 +244,8 @@ class SFXLauncherApp(ctk.CTk):
                 import datetime
                 import socket
                 hostname = socket.gethostname()
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                # Change to Date-only to enable "Daily Batch" (Append Mode)
+                timestamp = datetime.datetime.now().strftime("%Y%m%d")
                 name = f"{hostname}_Batch_{timestamp}"
             
             # Setup Excel Path for this run if custom
