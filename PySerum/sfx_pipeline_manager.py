@@ -171,6 +171,10 @@ class SFXPipeline:
             return
             
         print(f"Pool Created: {len(pool_files)} assets available.")
+        
+        # --- Load Factory Log for Traceability ---
+        factory_log_path = os.path.join(dir_pool_raw, "generation_log.xlsx")
+        factory_data_map = self._load_factory_log(factory_log_path)
 
         # --- Phase 2: Production Loop ---
         print(f"--- Phase 2: Production Loop (Target: {total_count}) ---")
@@ -185,12 +189,12 @@ class SFXPipeline:
                 src_name = os.path.basename(src_file)
                 
                 # 2. Determine Loop Count (Single Pass)
-                # Correction: Run exactly ONE configured route per generation to avoid noise.
                 loop_count = 1 
                 
                 # Prepare Temp Flow
                 current_file = src_file
                 history_routes = []
+                processing_details = {} # Store runtime params here
                 
                 # Copy start file to temp
                 work_file = os.path.join(dir_temp, f"work_{generated_count}.wav")
@@ -208,17 +212,17 @@ class SFXPipeline:
                     success = True
                     if route == "Through":
                         shutil.copy2(current_file, next_file)
+                        processing_details["Route"] = "Through"
                         
                     elif route == "Transformer":
-                         # Fallback to Masker-like logic via Config
                         t_params = {"NoiseType": "Random", "MaskAmount_Min": 0.2, "MaskAmount_Max": 0.6}
                         
                         if "Masker" in effects_config:
-                             # Resolve Per Iteration
                              m_exc = self._resolve_fx_params(effects_config["Masker"])
                              t_params.update(m_exc)
                         
                         self.masker.process_file(current_file, next_file, t_params)
+                        processing_details.update({f"Trans_{k}": v for k, v in t_params.items()})
                         
                     elif route == "Masker":
                         m_params = {"NoiseType": "Random", "MaskAmount_Min": 0.1, "MaskAmount_Max": 0.3}
@@ -226,6 +230,7 @@ class SFXPipeline:
                              m_exc = self._resolve_fx_params(effects_config["Masker"])
                              m_params.update(m_exc)
                         self.masker.process_file(current_file, next_file, m_params)
+                        processing_details.update({f"Mask_{k}": v for k,v in m_params.items()})
                         
                     elif route == "TransMask" or route == "MaskTrans":
                         # Double pass
@@ -237,6 +242,7 @@ class SFXPipeline:
                         
                         self.masker.process_file(current_file, temp_mid, m_params)
                         self.masker.process_file(temp_mid, next_file, m_params) 
+                        processing_details.update({f"Double_{k}": v for k,v in m_params.items()})
                         
                     # Swap
                     if os.path.exists(next_file):
@@ -253,35 +259,73 @@ class SFXPipeline:
                     n_params.update(n_exc)
                 
                 self.normalizer.process_single_file(current_file, final_out, n_params)
+                processing_details.update({f"Norm_{k}": v for k,v in n_params.items()})
                 
                 # Log
                 if os.path.exists(final_out):
-                     log_data = {
+                     log_entry = {
                          "File Name": final_name,
                          "Score": "",
                          "Route": " -> ".join(history_routes),
                          "Source_File": src_name
                      }
-                     # Add Factory details if available (from map logic, skipped for brevity in full rewrite but crucial)
-                     # (Restoring factory map logic would be good if possible, but complex to merge in this snippet.
-                     #  I'll skip Factory param logging for *generated* files to keep it simple, 
-                     #  or we trust that Source_File Name contains enough info or we load map.)
-                     final_logs.append(log_data)
+                     
+                     # 1. Merge Processing Details
+                     log_entry.update(processing_details)
+                     
+                     # 2. Merge Factory Data
+                     # Try to match Source Name (remove _01 suffix)
+                     # Pattern: RawName + _\d+ + .wav
+                     # Example: Quartz_..._01.wav -> Quartz_... .wav (Logic from Slicer)
+                     # Actually Factory Log key is filename (Quartz_... .wav).
+                     # Sliced file is Quartz_..._01.wav
+                     
+                     raw_base_match = re.match(r"(.*)_\d+(\.[a-zA-Z0-9]+)$", src_name)
+                     if raw_base_match:
+                         raw_key = raw_base_match.group(1) + raw_base_match.group(2)
+                     else:
+                         raw_key = src_name # Maybe unsliced or full file
+                         
+                     if raw_key in factory_data_map:
+                         # Merge factory params with prefix "F_"? Or direct?
+                         # Direct seems cleaner but might collide. 
+                         # User wants "Detailed Info", collision unlikely unless same param names.
+                         # Factory params are like "Duration", "Voices". Processing are "MaskAmount".
+                         # Safe to merge directly.
+                         log_entry.update(factory_data_map[raw_key])
+                         
+                     final_logs.append(log_entry)
                      generated_count += 1
-                     print(f"Generated {generated_count}/{total_count} (Loops: {loop_count})", end="\r")
+                     print(f"Generated {generated_count}/{total_count} (Route: {route})", end="\r")
 
             except Exception as e:
                 print(f"Loop Error: {e}")
+                traceback.print_exc()
                 
         print("\n=== Pipeline Complete ===")
         
         # Manifest
         manifest_path = os.path.join(dir_final, "final_manifest.xlsx")
+        
+        # Collect all unique keys for header
+        all_keys = ["Score", "File Name", "Route", "Source_File"] # Order priority
+        seen = set(all_keys)
+        
+        # Scan all logs to find extra keys
+        for l in final_logs:
+            for k in l.keys():
+                if k not in seen:
+                    all_keys.append(k)
+                    seen.add(k)
+                    
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.append(["Score", "File Name", "Route", "Source_File"])
+        ws.append(all_keys)
+        
         for l in final_logs:
-            ws.append([l["Score"], l["File Name"], l["Route"], l["Source_File"]])
+            row = [l.get(k, "") for k in all_keys]
+            ws.append(row)
+            
         wb.save(manifest_path)
         
         # Performance Report
@@ -289,6 +333,33 @@ class SFXPipeline:
         with open(os.path.join(base_dir, "performance_report.txt"), "w") as f:
              f.write(f"Total: {total_count}\nTime: {dur_total:.2f}s\n")
         print(f"Report saved to {base_dir}")
+
+    def _load_factory_log(self, path):
+        """Loads generation_log.xlsx into a dict: filename -> {param: val}"""
+        data = {}
+        if not os.path.exists(path): return data
+        try:
+            wb = openpyxl.load_workbook(path, data_only=True)
+            ws = wb.active
+            headers = [c.value for c in ws[1]] # Row 1
+            
+            if "File Name" not in headers: return data
+            idx_fname = headers.index("File Name")
+            
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                fname = row[idx_fname]
+                if not fname: continue
+                
+                entry = {}
+                for i, val in enumerate(row):
+                    header = headers[i]
+                    if header in ["Score", "File Name", "Date"]: continue # Skip metadata
+                    entry[header] = val
+                data[fname] = entry
+        except Exception as e:
+            print(f"Warning: Could not load factory log: {e}")
+            
+        return data
 
 if __name__ == "__main__":
     import argparse

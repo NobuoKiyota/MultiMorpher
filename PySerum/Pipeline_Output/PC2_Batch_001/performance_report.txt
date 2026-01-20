@@ -1,2 +1,2 @@
-Total: 50
-Time: 112.83s
+Total: 20
+Time: 92.55s

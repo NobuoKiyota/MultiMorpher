@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Output Directories
+Pipeline_Output/
+Output/
+Scans/
+Candidates/
+BestAssets/
+CheckFinished_BadSound/
+Test_UI_Output/
+
+# Build
+dist/
+build/
+*.spec
+
+# Settings & Logs
+*.log
+last_state.json
+last_launcher_state.json
+settings.json
+
+# User Specific
+Factory_Parameters.xlsx

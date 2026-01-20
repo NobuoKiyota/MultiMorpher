@@ -22,13 +22,14 @@
 
 ## 正しい運用フロー (3-PC Workflow)
 
-### Phase 1: Local Generation & Review
-### 1. Local Generation & Review
+### 1. Local Generation & Review [COMPLETED]
 各PCローカルで行います。
 1.  **Launch**: `launch_gui.bat` (デスクトップショートカット) でランチャー起動。
-2.  **Generate**: "Run Pipeline" で生成 (例: `PC1_Batch_20260120...`)。
-3.  **Review**: 生成完了後、"Open Reviewer" で採点 (Hotkeys: `.` to Play, `Numpad 1-9` to Score).
-    *   *※この段階ではまだタグ付けは不要。単に「音として良いか悪いか」だけを判断。*
+2.  **Config**: **"Use Excel Config"** をチェック (パラメータは `Factory_Parameters.xlsx` で管理)。
+3.  **Generate**: "Run Pipeline" で生成 (例: `PC1_Batch_20260120...`)。
+    *   **Logic**: "Single Pass" (1回加工) により、ノイズ過多を防ぎつつExcel指定の加工を適用。
+4.  **Review**: `Reviewer App` で生成音を確認。
+    *   *※`final_manifest.xlsx` に詳細パラメータが記録されていることを確認。*
 
 ### 2. Cloud Sync (Data Pool)
 1.  Reviewer左下の **[☁ Sync to Cloud]** をクリック。
