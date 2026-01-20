@@ -1,6 +1,2 @@
-=== SFX Generation Performance Report (Gacha Mode) ===
-Batch Name: PC3_Batch_001
-Date: 2026-01-20 02:58:40.641372
-Total Target: 10
-Final Count: 10
-Total Duration: 32.23 seconds
+Total: 10
+Time: 56.74s
