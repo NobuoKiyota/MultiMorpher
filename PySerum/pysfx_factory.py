@@ -30,18 +30,48 @@ class PyQuartzFactory:
             print(f"Warning: Failed to init ImageTracer: {e}")
 
     def _get_param_value(self, config, name):
-        """Random設定を考慮して値を取得し、ログ用に保存するヘルパー"""
-        node = config.get(name)
-        if not node: return 0.0
-        
-        if node.get("random"):
-            val = random.uniform(float(node["min"]), float(node["max"]))
-        else:
-            val = float(node["value"])
+        """
+        Excel設定(config)を優先して値を取得します。
+        config[name] = {"min": v, "max": v, "probability": 0-100}
+        """
+        # 1. Excel Config Check
+        if config and name in config:
+            node = config[name]
+            prob = node.get("probability", 0)
             
+            # Probability Check
+            if prob > 0 and (prob >= 100 or random.uniform(0, 100) < prob):
+                # Apply Random
+                v_min = float(node["min"])
+                v_max = float(node["max"])
+                if v_min > v_max: v_min, v_max = v_max, v_min # Safety
+                
+                val = random.uniform(v_min, v_max)
+                if self.recording_params: self.captured_params[name] = val
+                return val
+            
+            # Use Base Value from Config if available (Probability Failed case)
+            if "value" in node and node["value"] is not None:
+                val = float(node["value"])
+                if self.recording_params: self.captured_params[name] = val
+                return val
+        
+        # 2. Fallback to Hardcoded Default (if not in config)
+        from pysfx_param_config import PySFXParams
+        default_val = 0.0
+        for p in PySFXParams.DEFINITIONS:
+            if p.name == name:
+                default_val = p.default
+                break
+        
+        # Special case for Boolean defaults
+        if default_val is False: default_val = 0.0
+        if default_val is True: default_val = 1.0
+        
         if self.recording_params:
-            self.captured_params[name] = val
-        return val
+            self.captured_params[name] = default_val
+            
+        return float(default_val)
 
     def run_advanced_batch(self, config, num_files=10, progress_callback=None):
         print(f"--- PyQuartz SFX Factory Production: {num_files} files ---")

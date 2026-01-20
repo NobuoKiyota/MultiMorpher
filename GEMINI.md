@@ -23,3 +23,13 @@
 ## 4. Documentation & Logging
 - **Debug Note:** Maintain a history of changes, errors, and fixes in `DEBUG_NOTE.md` (Write in **Japanese**).
 - **Summarization:** When the log becomes too long, you are authorized to summarize old entries into an "Overview" section.
+
+## 5. Target Environment & Assets (Merged Context)
+- **Unity Editor:** 6000.3.2f1
+- **CRIWare:** Ver.3.48.00 (built on Aug 22 2022) 11:39:42
+  - ACF Format Ver.1.28.00
+  - ACB Format Ver.1.40.00
+  - CRI Atom: 2.24.175
+  - CRI AtomEx: 2.24.4
+  - CRI AtomEx Monitor: 1.18.9
+- **Past Assets:** `F:\UnityCustomEditor\DebugLog_Distance`

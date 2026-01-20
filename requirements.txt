@@ -11,3 +11,4 @@ packaging
 transformers
 pandas
 odfpy
+sounddevice

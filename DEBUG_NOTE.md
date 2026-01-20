@@ -93,35 +93,60 @@
   - **Dynamic Visuals**: ノブのグラフィック（Arc）の明るさが値の大きさに応じて変化するよう調整（低＝暗、高＝明）。
   - **Minimal Checkboxes**: ロック用チェックボックスを 12x12 サイズに縮小し、レイアウトへの干渉を最小化。
 
-
-
-- [2026-01-16] Step 14: Automation System
+- **[2026-01-16] Step 14: Automation System**
   - **Automation Engine**: `AutomationLane` クラスを実装し、時間補間によるパラメータ変調を実現。`SerumEngine` と統合し、`get_automated_value` 経由で各パラメータへ適用。
   - **Automation Editor**: GUI右側にオートメーションエディタ（オレンジテーマ）を追加。ポイントの追加・移動・削除、ループ長の設定が可能。
   - **Integration**: 全ノブをクリックするとフォーカスされ、エディタが該当パラメータのオートメーション編集モードに切り替わる機能を実装。
 
-- [2026-01-16] Step 15: Bug Fix & Layout Overhaul (1:1:2)
+- **[2026-01-16] Step 15: Bug Fix & Layout Overhaul (1:1:2)**
   - **Critical Fix**: `pyserum_engine.py` で `UnboundLocalError` (vl referenced before assignment) が発生するバグを修正。ボイス処理ループのインデントを適正化。
   - **UI Refactor**: メイン画面を 3カラム・グリッド (OSC Tabs / FX Tabs / Automation) に刷新。幅比率を `1:1:2` に設定し、操作性と一覧性を向上。
   - **Big Value Indicator**: ヘッダーにパラメータ値を大きく表示するインジケーターを追加。ノブの操作・フォーカス時に即座に値が反映されるよう配線。
 
-- [2026-01-16] Step 16: GUI Configuration System
+- **[2026-01-16] Step 16: GUI Configuration System**
   - **Config**: `GUI_CONFIG` 辞書を `pyserum_main.py` 冒頭に導入し、GUIサイズ定義（ウィンドウ解像度、ウィジェットサイズ、パディング等）を一元管理化。
   - **Comments**: 各設定値にデフォルト値をコメントとして併記し、これらを変更することでGUI全体のサイズ感を容易に調整可能に改修。
 
-- [2026-01-17] Step 17: Dashboard Layout Overhaul
+- **[2026-01-17] Step 17: Dashboard Layout Overhaul**
   - **Grid Layout**: 既存のTab(OSC/FX)を廃止し、OSC A/B, FXを横一列に並べるダッシュボードスタイルに変更。
   - **Right Panel**: 画面最右翼に `LevelMeter` を実装。AudioCallbackでのモノラルRMS/Peakを視覚化。
   - **Dense Design**: パディングを最小限に抑え、AutomationEditor, Envelopes, Scopeを中央部に集約。LFOパネルは一時的に非表示化。
 
-- [2026-01-17] Step 18: Layout Fix (Density Optimization)
+- **[2026-01-17] Step 18: Layout Fix (Density Optimization)**
   - **Density Optimization**: Recalculated component widths to fully utilize the 1200px window width.
   - **Header Balance**: Expanded the central Indicator to 420px to eliminate empty space.
   - **Widget Sizing**: Increased knob and button sizes for better usability and professional look.
 
-- [2026-01-17] Step 19: Exact Pixel Layout Implementation
+- **[2026-01-17] Step 19: Exact Pixel Layout Implementation**
   - **Layout Const**: Defined `LAYOUT_CFG` with precise pixel values for row heights and column widths.
   - **Fixed Layout**: Rebuilt `_init_ui` using `grid_propagate(False)` on all main containers to enforce strict 1200x840 dimensions.
   - **Zoning**: Applied background colors to structural frames to match the blueprint design zones.
 
+- **[2026-01-20] MultiMorpher Pro (Integrated Rack) Implementation**
+  - **Architecture**:
+    - `morph_core.py`: Hybrid Audio Engine (STFT/PyWorld).
+    - `processors.py`: Vectorized morphing logic (Blend, Interp, CrossSyn, Formant).
+    - `protomorph_gui.py`: Rack-style CustomTkinter GUI.
+  - **Verification**:
+    - Created `test_pro.py` for import and logic verification.
+    - Note: Dependency installation was blocking final verification.
 
+- **[2026-01-20] Live Mode (Real-time Streaming) Implementation**
+  - **Feature**: Added "Live Monitor" toggle to `protomorph_gui.py`.
+  - **Engine**: Created `realtime_engine.py` using `sounddevice`.
+    - Implemented block-based STFT processing pipeline (FFT -> Effect -> IFFT).
+    - Supports Spectral Blending, Interpolation, Cross Synth, and Formant Shifting in near real-time.
+    - Added input buffering and simple looping for continuous preview.
+  - **Optimization**:
+    - WORLD engine is disabled in Live Mode (CPU cost too high for Python streaming).
+    - STFT block size set to 2048 for balance between latency (~42ms) and frequency resolution.
+
+- **[2026-01-20] Performance & Export Features**
+  - **XY Pad Performance Mode**:
+    - Implemented `XYPad` custom widget (Canvas-based) for intuitive control.
+    - X-Axis: Maps to primary morph parameter depending on mode (Split Freq, Mix, Shift).
+    - Y-Axis: Maps to a new **Spectral Lowpass Filter** implemented in `realtime_engine.py` (Spectral Roll-off).
+    - Added 30ms throttling (debounce) to mouse events to ensure UI responsiveness.
+  - **Recording System**:
+    - **Live Mode**: Added `[● REC STREAM]` button. Captures the real-time buffer stream to WAV (`output/rec_live_*.wav`).
+    - **Render Mode**: Added `[EXPORT WAV]` button. Saves the last processed result to WAV (`output/render_*.wav`).

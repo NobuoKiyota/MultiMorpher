@@ -13,6 +13,8 @@
 - [x] Implement `Slicer` step integration (Trim) - *Extracted to `pysfx_slicer_engine.py`*
 - [x] Implement `Normalizer` step integration (Length enforcement) - *Extracted to `pysfx_normalizer_engine.py`*
 - [x] Implement `ExcelLogger` (Data Collection) - *Implemented `pysfx_logger.py`*
+- [x] Implement Excel Parameter Control (`pysfx_excel_loader.py`)
+- [x] Implement Advanced Loop Algorithm (Factory -> Slicer -> Loop -> Norm)
 - [x] Verify Pipeline with small batch
 
 ## Phase 3: Verification GUI
