@@ -104,6 +104,27 @@ class QuartzMaskerEngine:
             
             # Resolve Random Params
             noise_type = params.get("NoiseType", "White")
+            
+            # --- Sanitization Start ---
+            # Excel might pass 0.0 or other floats for empty/invalid cells
+            if not isinstance(noise_type, str):
+                noise_type = str(noise_type)
+            
+            # Clean up logic
+            if noise_type.replace('.', '', 1).isdigit(): # If it looks like a number
+                noise_type = "White" # Default
+            
+            valid_types = ["White", "Pink", "Brown", "Random"]
+            # Case insensitive check
+            found = False
+            for vt in valid_types:
+                if vt.lower() == noise_type.lower():
+                    noise_type = vt
+                    found = True
+                    break
+            if not found: noise_type = "White"
+            # --- Sanitization End ---
+
             current_noise = noise_type
             if current_noise == "Random":
                 current_noise = random.choice(["White", "Pink", "Brown"])

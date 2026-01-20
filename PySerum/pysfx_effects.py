@@ -59,7 +59,10 @@ class EffectsProcessor:
     @staticmethod
     def apply_delay(audio, time_s, feedback, wet):
         if wet <= 0: return audio
+        if time_s <= 0.001: return audio
+        
         delay_samples = int(time_s * SR)
+        # Safety check: if delay is longer than audio, skip or clip? For echoes, skip.
         if delay_samples >= len(audio): return audio 
         
         out = audio.copy()
@@ -67,15 +70,29 @@ class EffectsProcessor:
         current_gain = feedback
         
         # Iterative Echoes
-        while current_gain > 0.01:
+        max_iter = 10 # Prevent infinite loops if gain logic fails
+        iter_count = 0
+        
+        while current_gain > 0.01 and iter_count < max_iter:
             echo = np.zeros_like(audio)
             if current_delay < len(audio):
-                echo[current_delay:] = audio[:-current_delay] * current_gain
-                out += echo * wet
+                # Ensure broadcasting shapes match
+                src_segment = audio[:-current_delay]
+                dst_segment = echo[current_delay:]
+                
+                # Double check lengths (sometimes off by 1 in rare cases?)
+                n_src = len(src_segment)
+                n_dst = len(dst_segment)
+                
+                if n_src == n_dst and n_src > 0:
+                    echo[current_delay:] = src_segment * current_gain
+                    out += echo * wet
             else:
                 break
+                
             current_delay += delay_samples
             current_gain *= feedback
+            iter_count += 1
             
         return out
 

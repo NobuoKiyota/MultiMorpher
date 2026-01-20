@@ -64,7 +64,7 @@ class SFXPipeline:
                 
         return resolved
 
-    def run_pipeline(self, batch_name, total_count=50, source_count=None, factory_settings=None, routing_weights=None):
+    def run_pipeline(self, batch_name, total_count=50, source_count=None, factory_settings=None, routing_weights=None, excel_path=None):
         """
         Gacha Algorithm Pipeline (Advanced Loop).
         1. Create Asset Pool (Factory -> Slicer) using source_count.
@@ -75,7 +75,10 @@ class SFXPipeline:
         # Default Weights
         if not routing_weights:
             routing_weights = {"Transformer":30, "Masker":30, "Through":20, "TransMask":10, "MaskTrans":10}
-            
+            weighted_from_excel = False # Check if we should override later
+        else:
+            weighted_from_excel = False # Manual provided
+
         # Normalize Weights
         w_keys = list(routing_weights.keys())
         w_vals = list(routing_weights.values())
@@ -103,9 +106,33 @@ class SFXPipeline:
         # 1. Factory (Load Excel Config)
         self.factory.out_dir = dir_pool_raw
         
-        # Load Excel or Create Template
-        excel_path = ExcelConfigLoader.get_excel_path()
+        # Load Excel Logic
+        if not excel_path:
+             excel_path = ExcelConfigLoader.get_excel_path()
+        
         full_config = ExcelConfigLoader.load_config(excel_path)
+        
+        factory_config_excel = full_config.get("Factory", {}) if full_config else {}
+        effects_config = full_config.get("Effects", {}) if full_config else {}
+        weights_config = full_config.get("Weights", {}) if full_config else {}
+        
+        # If no manual routing weights provided (None passed from UI when Excel checked), use Excel Weights
+        if routing_weights is None or (len(w_keys) == 5 and w_vals[0]==30 and w_vals[2]==20): # Or simple check arg
+             pass
+        
+        # Better: UI passes None if Excel checked.
+        if routing_weights is None and weights_config:
+             print("Using Routing Weights from Excel.")
+             routing_weights = weights_config
+             w_keys = list(routing_weights.keys())
+             w_vals = list(routing_weights.values())
+        elif routing_weights is None:
+             # Default fallback
+             routing_weights = {"Transformer":30, "Masker":30, "Through":20, "TransMask":10, "MaskTrans":10}
+             w_keys = list(routing_weights.keys())
+             w_vals = list(routing_weights.values())
+
+        # Merge Factory Overrides
         
         factory_config_excel = full_config.get("Factory", {}) if full_config else {}
         effects_config = full_config.get("Effects", {}) if full_config else {}
@@ -157,8 +184,9 @@ class SFXPipeline:
                 src_file = random.choice(pool_files)
                 src_name = os.path.basename(src_file)
                 
-                # 2. Determine Loop Count (3-7)
-                loop_count = random.randint(3, 7)
+                # 2. Determine Loop Count (Single Pass)
+                # Correction: Run exactly ONE configured route per generation to avoid noise.
+                loop_count = 1 
                 
                 # Prepare Temp Flow
                 current_file = src_file
@@ -172,7 +200,7 @@ class SFXPipeline:
                 for i in range(loop_count):
                     # Determine Route
                     route = random.choices(w_keys, weights=w_vals, k=1)[0]
-                    history_routes.append(f"[{i+1}:{route}]")
+                    history_routes.append(f"[{route}]")
                     
                     next_file = os.path.join(dir_temp, f"work_{generated_count}_next.wav")
                     
