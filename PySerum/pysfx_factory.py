@@ -4,7 +4,10 @@ import os
 import datetime
 import random
 from pysfx_engine import PyQuartzEngine, SR, BLOCK_SIZE
+from pysfx_engine import PyQuartzEngine, SR, BLOCK_SIZE
 from pysfx_factory_logic import GenerationLogic
+
+VERSION = "2.0.0"
 
 class PyQuartzFactory:
     def __init__(self):
@@ -40,6 +43,8 @@ class PyQuartzFactory:
             prob = node.get("probability", 0)
             
             # Probability Check
+            if node.get("random", False): prob = 100
+            
             if prob > 0 and (prob >= 100 or random.uniform(0, 100) < prob):
                 # Apply Random
                 v_min = float(node["min"])
@@ -85,7 +90,14 @@ class PyQuartzFactory:
             
             # 1. 各種パラメータの決定 (Random設定対応)
             duration = self._get_param_value(config, "Duration")
-            root_note = int(self._get_param_value(config, "NoteRange"))
+            # NoteRange: Use round() to properly capture random float values (e.g. 60.9 -> 61)
+            raw_note = self._get_param_value(config, "NoteRange")
+            root_note = int(round(raw_note))
+            if self.recording_params:
+                 # Override captured with integer used, or keep float? 
+                 # Keep float in log for transparency, but debug print here
+                 pass
+            # print(f"DEBUG: NoteRange raw={raw_note:.2f} -> {root_note}")
             num_voices = int(self._get_param_value(config, "Voices"))
             strum_ms = self._get_param_value(config, "Strum")
             
@@ -434,8 +446,8 @@ class PyQuartzFactory:
                 wb = openpyxl.Workbook()
                 ws = wb.active
                 ws.title = "Generation Log"
-                # Headers: Score, File Name, Params..., Date
-                headers = ["Score", "File Name"] + [p.name for p in PySFXParams.get_sorted_params()] + ["Date"]
+                # Headers: Score, File Name, Params..., Date, Version
+                headers = ["Score", "File Name"] + [p.name for p in PySFXParams.get_sorted_params()] + ["Date", "Version"]
                 ws.append(headers)
             
             # Check Header (Migration for Score column)
@@ -470,6 +482,7 @@ class PyQuartzFactory:
                 row_data.append(val)
                 
             row_data.append(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            row_data.append(VERSION)
             ws.append(row_data)
             
             # Styling
