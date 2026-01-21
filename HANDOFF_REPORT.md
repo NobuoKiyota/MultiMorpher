@@ -1,74 +1,45 @@
-# Handoff Report: SFX Automation Project (Mass Production Ready)
-**Date:** 2026-01-20
+# Handoff Report: SFX Automation Project (Mass Production Ready 2.0)
+**Date:** 2026-01-21
 **To:** Workspace (Production Team)
 
-## 本日の成果 (Mass Production Setup)
+## 本日(2026-01-21)のアップデート (Reviewer 2.0 & Fixes)
 
-### 1. 3台体制での量産環境構築
-*   **インストーラー整備**: `install_dependencies.bat` を強化。
-    *   Pythonのパスが見つからない場合の診断機能を追加。
-    *   `python-3.12.7-amd64.exe` でのセットアップ手順を確立（**Add to PATH** 必須）。
-*   **PC間競合の回避**:
-    *   Launcher: Batch Name を `[HostName]_Batch_[Date]` 形式で自動生成するように変更。
-    *   これにより、3台のPCで同時に「Run」を押してもフォルダ名が被りません。
+### 1. バグ修正 (Critical Fix)
+*   `pysfx_factory.py`: `NoteRange` 等のパラメータで、GUIから「Random」を指定しても常に固定値が出力される問題を修正しました。
+*   GUIからの `random: True` フラグを正しく認識し、確率 100% として処理するロジックを追加しました。
 
-### 2. データ集約フローの確立 (Sync to Cloud)
-*   Reviewerアプリに **[☁ Sync to Cloud]** ボタンを実装しました。
-*   ボタン一発で以下の処理を行います：
-    1.  `HighScore` (8-10点) のWAVファイルを、Google Drive の中間プール (`SFX_Raw_Candidates`) へコピー。
-    2.  `LowScore` (1-3点) のWAVファイルを、別フォルダ (`SFX_Negative_Samples`) へコピー。
-    3.  **Excelログ**: `[PC名]_[Batch名]_manifest.xlsx` にリネームしてコピー（情報の上書き防止）。
-*   **前回状態の記憶**: Launcher（Batch Name）と Reviewer（開いたフォルダ）の入力状態を保持するようにしました。
+### 2. Reviewer 2.0 (Feedback Loop Update)
+人間による評価データをAI自動判定の学習データとして活用するため、Reviewerアプリを大幅に強化しました。
 
-## 正しい運用フロー (3-PC Workflow)
+#### 機能変更点
+*   **Granular Scoring (1-9点評価)**:
+    *   従来のHigh/Lowだけでなく、1〜9の細かいスコア付けが可能になりました。
+    *   出力フォルダ構成を変更: `Output/Score_1` 〜 `Output/Score_9` に自動振り分けされます。
+*   **Tagging System (タグ付け)**:
+    *   画面上のチェックボックス（Noisy, Click, Metallicなど）で素早くタグ付けが可能。
+    *   設定は `tagger_config.json` でカスタマイズ可能。
+    *   タグ情報はExcelログの `Tags` カラムに保存されます。
+*   **Version Tracking**:
+    *   生成エンジンのバージョン（現在は `2.0.0`）をExcelログに記録するようにしました。これにより、将来的なアルゴリズム変更時のデータ混同を防ぎます。
+*   **Sync Logic Update**:
+    *   `Sync to Cloud` ボタンが `Score_1` 〜 `Score_9` 全フォルダの同期に対応しました。
 
-### 1. Local Generation & Review [COMPLETED]
-各PCローカルで行います。
-1.  **Launch**: `launch_gui.bat` (デスクトップショートカット) でランチャー起動。
-2.  **Config**: **"Use Excel Config"** をチェック (パラメータは `Factory_Parameters.xlsx` で管理)。
-3.  **Generate**: "Run Pipeline" で生成 (例: `PC1_Batch_20260120...`)。
-    *   **Logic**: "Single Pass" (1回加工) により、ノイズ過多を防ぎつつExcel指定の加工を適用。
-4.  **Review**: `Reviewer App` で生成音を確認。
-    *   *※`final_manifest.xlsx` に詳細パラメータが記録されていることを確認。*
+## 正しい運用フロー (Updated)
 
-### 2. Cloud Sync (Data Pool)
-1.  Reviewer左下の **[☁ Sync to Cloud]** をクリック。
-2.  (初回のみ) Google Drive上の **「中間プールフォルダ」** (例: `SFX_Raw_Candidates`) を選択。
-3.  データがクラウドに集約されます。
+1.  **Generate**: Launcher で生成実行。Excelパラメータ (`Factory_Parameters.xlsx`) および GUI設定が反映されます。
+2.  **Review (Reviewer 2.0)**:
+    *   音を聴く。
+    *   特徴があれば **Tags** チェックボックスをONにする（例: `Click`, `GoodTail`）。
+    *   テンキー **1〜9** でスコアを入力。
+    *   ファイルが `Score_X` フォルダへ移動し、次へ進みます。
+3.  **Sync**:
+    *   「Sync to Cloud」でクラウドへアップロード。タグ付きの高品質データセットとして蓄積されます。
 
-### 3. Setup Instructions (3-PC Workflow)
-
-> **Note:** Run `install_dependencies.bat` first to ensure all libraries are installed.
-
-1.  **Configure PC Name:** The script automatically uses the hostname (PC1, PC2, PC3). No manual config needed.
-2.  **Launch:** Double-click `launch_gui.bat`.
-3.  **Run Pipeline:** Set "Total Production Target" and "Asset Pool Size", then click **RUN PIPELINE**.
-4.  **Review:** Click **OPEN REVIEWER** to audition and score sounds.
-5.  **Sync:** Click **Sync to Cloud** to upload valid assets to GDrive.
-
-### 4. Excel-Based Parameter Control (New!)
-
-The pipeline now supports parameter control via an Excel file, allowing for precise tuning of the generation process without code changes.
-
-*   **Configuration File:** `Factory_Parameters.xlsx`
-    *   **Sheet 1 (Factory):** Controls synthesis parameters (Probability, Min/Max values).
-    *   **Sheet 2 (Effects):** Configures Slicer, Masker, and Normalizer settings.
-    *   **Sheet 3 (Weights):** Defines the probability weights for different processing routes (Transformer, Masker, Through, etc.).
-*   **Loader Logic:** `pysfx_excel_loader.py` reads this file at runtime. If the file is missing, a template will be auto-generated.
-
-### 5. Final Annotation (Tagging)
-人間（管理者）が時間のある時に実施。
-1.  `Quartz Suite` の `WAV Extractor` を起動。
-2.  Inputとして `SFX_Raw_Candidates` を指定。
-3.  タグ・コメントを付与し、正規の **`QuartzAnnotation`** フォルダへエクスポート。
-
-## Key Components
+## Key Components (Updated)
+*   **`sfx_reviewer_app.py`**: V2.0. Supports Tags, 1-9 Scores, Versioning.
+*   **`tagger_config.json`**: Config file for Quick Tags checks.
+*   **`pysfx_factory.py`**: Updated to fix Random bug & inject Version info.
 *   `sfx_launcher_app.py` : Main GUI for 3-PC Mass Production.
-*   `sfx_reviewer_app.py` : Efficient review tool with "Sync to Cloud".
-*   `sfx_pipeline_manager.py` : Orchestrates the "Gacha" generation loop.
-*   `pysfx_excel_loader.py` : Loads parameters from `Factory_Parameters.xlsx`.
 *   `Factory_Parameters.xlsx` : User-editable configuration file.
-*   `install_dependencies.bat` : One-click setup script.
-*   `launch_gui.bat` : Launcher shortcut.
 
-以上、量産体制は整いました。各PCでの稼働をお願いします。
+以上、Reviewer 2.0による高品質データ収集体制が整いました。

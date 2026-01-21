@@ -397,9 +397,32 @@ class FactoryGUI(ctk.CTk):
         # Reset Button (Right)
         ctk.CTkButton(bottom_frame, text="Reset", command=self.reset_defaults, 
                       fg_color="#555555", width=60).pack(side="right", padx=5)
+
+        # Reviewer Button (New)
+        ctk.CTkButton(bottom_frame, text="Reviewer", command=self.open_reviewer,
+                      fg_color="#4CAF50", width=80).pack(side="right", padx=5)
+
         self.txt_log = ctk.CTkTextbox(self, height=60)
         self.txt_log.pack(pady=5, padx=10, fill="x")
         sys.stdout = RedirectText(self.txt_log)
+
+    def open_reviewer(self):
+        # Determine Factory Output Directory
+        # By default it is "Output" relative to script
+        target_dir = os.path.join(os.getcwd(), "Output")
+        reviewer_script = "sfx_reviewer_app.py"
+        if not os.path.exists(reviewer_script):
+            print("Error: Reviewer script not found in current directory.")
+            return
+            
+        import subprocess
+        try:
+            # Launch Reviewer pointing to Output
+            cmd = f'start cmd /k "python {reviewer_script} "{target_dir}""'
+            subprocess.Popen(cmd, shell=True)
+            print("Launching Reviewer...")
+        except Exception as e:
+            print(f"Error launching reviewer: {e}")
 
     def toggle_row(self, name):
         ctrl = self.controls[name]
