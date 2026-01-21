@@ -6,4 +6,4 @@ rem Install dependencies
 pip install pyaudio numpy customtkinter mido python-rtmidi scipy
 
 python pyserum_main.py
-pause
+

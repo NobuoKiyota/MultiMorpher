@@ -31,6 +31,9 @@
   - [x] Setup `install_dependencies.bat` for new PCs
   - [x] Implement "Sync to Cloud" for Data Aggregation
   - [x] Establish "Raw Candidates" workflow
+- [x] Refine Reviewer GUI Layout (Configurable Tags/Params area)
+- [x] Standardize Pipeline Output (Tags, Version columns) & Create Launchers
+- [x] Bilingual Support for Reviewer & Tag Config Unification
 - [ ] Analyze Feedback Loop (Optional: Implement Logic to improve Factory based on High Scores)
 
 ## Phase 5: Documentation & Handoff

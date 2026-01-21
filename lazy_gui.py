@@ -21,7 +21,7 @@ ctk.set_default_color_theme("blue")
 # Ensure we look in the script directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "lazy_config.json")
-TAGS_FILE = os.path.join(BASE_DIR, "tags.ods")
+TAGS_FILE = os.path.join(BASE_DIR, "lazy_tag.ods")
 HISTORY_DIR = os.path.join(BASE_DIR, "lazy_history")
 
 class LazyBatchGUI(ctk.CTk):

@@ -21,7 +21,7 @@ def launch():
 
     print(f"Launching Reviewer for: {target_dir}")
     # Launch purely, no cmd /k if we want a clean app window, but python console is useful for debug
-    subprocess.Popen([sys.executable, reviewer_script, target_dir])
+    subprocess.run([sys.executable, reviewer_script, target_dir])
 
 if __name__ == "__main__":
     launch()

@@ -328,11 +328,13 @@ class SFXPipeline:
         manifest_path = os.path.join(dir_final, "final_manifest.xlsx")
         
         # Collect all unique keys for header
-        all_keys = ["Score", "File Name", "Route", "Source_File"] # Order priority
+        all_keys = ["Score", "File Name", "Route", "Source_File", "Tags", "Version"] # Order priority
         seen = set(all_keys)
         
         # Scan all logs to find extra keys
         for l in final_logs:
+            # Inject Version
+            l["Version"] = "2.0.0"
             for k in l.keys():
                 if k not in seen:
                     all_keys.append(k)

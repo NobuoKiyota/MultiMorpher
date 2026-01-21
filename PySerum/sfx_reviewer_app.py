@@ -26,9 +26,15 @@ class SFXReviewerApp(ctk.CTk):
         
         self.auto_advance = True
         self.tag_vars = {} # tag_name -> BooleanVar
+        self.layout_config = self.load_layout_config()
         self.quick_tags = self.load_tag_config()
         
+        # Apply Geometry from Config
+        geo = self.layout_config.get("window_geometry", "1100x850")
+        self.geometry(geo)
+        
         self._init_ui()
+
         
         if start_path and os.path.exists(start_path):
              self.load_batch(start_path)
@@ -47,11 +53,27 @@ class SFXReviewerApp(ctk.CTk):
         default_tags = ["Noisy", "Clean", "Click", "Hum", "Distortion", "LowEnd", "HighFreq", "Metallic", "Organic", "Long", "Short", "Loopable"]
         try:
             if os.path.exists("tagger_config.json"):
-                with open("tagger_config.json", "r") as f:
+                with open("tagger_config.json", "r", encoding="utf-8") as f:
                     data = json.load(f)
                     return data.get("quick_tags", default_tags)
         except: pass
         return default_tags
+
+    def load_layout_config(self):
+        default_layout = {
+            "window_geometry": "1100x850",
+            "tags_expand": False,
+            "tags_columns": 4,
+            "params_height": 0, # 0 means default/flexible
+            "params_show_mode": "full" # full or summary
+        }
+        try:
+            if os.path.exists("tagger_config.json"):
+                with open("tagger_config.json", "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return data.get("layout", default_layout)
+        except: pass
+        return default_layout
 
     def _init_ui(self):
         # Layout: Left (List 300px), Right (Detail)
@@ -64,6 +86,12 @@ class SFXReviewerApp(ctk.CTk):
         fr_left.grid_rowconfigure(1, weight=1)
         
         ctk.CTkButton(fr_left, text="Load Batch Folder", command=self.browse_folder).grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        
+        # Language Toggle
+        self.lang_mode = "EN" # EN or JP
+        self.btn_lang = ctk.CTkButton(fr_left, text="Lang: EN", width=60, fg_color="#555555", command=self.toggle_language)
+        self.btn_lang.grid(row=3, column=1, padx=5, pady=20, sticky="e")
+        
         ctk.CTkButton(fr_left, text="☁ Sync to Cloud", command=self.on_sync, fg_color="#009688", hover_color="#00796B").grid(row=3, column=0, padx=10, pady=20, sticky="ew")
         
         # Treeview style list
@@ -109,12 +137,28 @@ class SFXReviewerApp(ctk.CTk):
         fr_checks = ctk.CTkFrame(fr_tags, fg_color="transparent")
         fr_checks.pack(fill="x", padx=10, pady=5)
         
-        cols = 4
-        for i, tag in enumerate(self.quick_tags):
+        cols = self.layout_config.get("tags_columns", 4)
+        
+        # Mapping for language switching
+        self.chk_widgets = [] # (checkbox_obj, en_text, jp_text)
+        
+        for i, tag_data in enumerate(self.quick_tags):
+            # Parse Format: "Tag" or ["Tag", "Info"]
+            if isinstance(tag_data, list) or isinstance(tag_data, tuple):
+                tag_val = str(tag_data[0])
+                tag_disp_en = tag_val
+                tag_disp_jp = str(tag_data[1]) if len(tag_data) > 1 else tag_val
+            else:
+                tag_val = str(tag_data)
+                tag_disp_en = tag_val
+                tag_disp_jp = tag_val
+            
             var = ctk.BooleanVar()
-            self.tag_vars[tag] = var
-            chk = ctk.CTkCheckBox(fr_checks, text=tag, variable=var, font=("Arial", 11))
+            self.tag_vars[tag_val] = var
+            chk = ctk.CTkCheckBox(fr_checks, text=tag_disp_en, variable=var, font=("Arial", 11))
             chk.grid(row=i//cols, column=i%cols, sticky="w", padx=5, pady=5)
+            
+            self.chk_widgets.append((chk, tag_disp_en, tag_disp_jp))
             
         # Custom Entry
         fr_cust = ctk.CTkFrame(fr_tags, fg_color="transparent")
@@ -122,11 +166,43 @@ class SFXReviewerApp(ctk.CTk):
         ctk.CTkLabel(fr_cust, text="Custom:", width=60).pack(side="left")
         self.ent_custom_tags = ctk.CTkEntry(fr_cust, placeholder_text="Comma separated tags...")
         self.ent_custom_tags.pack(side="left", fill="x", expand=True)
+        # Bind FocusOut to auto-save or at least ensure entry doesn't lose data
+        # self.ent_custom_tags.bind("<FocusOut>", lambda e: self.save_current_tags())
 
-        # Row 3: Params (Expandable)
-        fr_right.grid_rowconfigure(3, weight=1)
-        self.fr_params = ctk.CTkScrollableFrame(fr_right, label_text="Parameters")
-        self.fr_params.grid(row=3, column=0, sticky="nsew", padx=20, pady=10)
+
+        # Configurable Layout Logic
+        tags_expand = self.layout_config.get("tags_expand", False)
+        
+        if tags_expand:
+            # Expand Tags Area (Row 2), Compressing Params
+            fr_right.grid_rowconfigure(2, weight=1) 
+            fr_right.grid_rowconfigure(3, weight=0)
+        else:
+            # Default: Share or prioritize params
+            fr_right.grid_rowconfigure(3, weight=1)
+
+        # Row 3: Params (Expandable or Fixed Small)
+        p_height = self.layout_config.get("params_height", 0)
+        
+        # If showing summary, we might not need a ScrollableFrame if it's just 1 line, 
+        # but keeping it consistent is safer or swapping to simple Frame.
+        if self.layout_config.get("params_show_mode") == "summary":
+            # Use simple frame for summary to save space and remove scrollbar
+            self.fr_params = ctk.CTkFrame(fr_right)
+            # Create a label inside for the summary text
+            self.lbl_param_summary = ctk.CTkLabel(self.fr_params, text="Params: ...", text_color="gray")
+            self.lbl_param_summary.pack(pady=10, padx=10, anchor="w")
+            
+            if p_height > 0:
+                self.fr_params.configure(height=p_height)
+            self.fr_params.grid(row=3, column=0, sticky="ew", padx=20, pady=10)
+            
+        else:
+            # Full List Mode
+            self.fr_params = ctk.CTkScrollableFrame(fr_right, label_text="Parameters")
+            if p_height > 0:
+                self.fr_params.configure(height=p_height)
+            self.fr_params.grid(row=3, column=0, sticky="nsew", padx=20, pady=10)
         
         # Row 4: Controls Zone (Bottom)
         fr_ctrl = ctk.CTkFrame(fr_right, height=120, fg_color="#1a1a1a")
@@ -153,6 +229,18 @@ class SFXReviewerApp(ctk.CTk):
     def toggle_auto(self):
         self.auto_advance = self.chk_auto.get()
         
+    def toggle_language(self):
+        if self.lang_mode == "EN":
+            self.lang_mode = "JP"
+            self.btn_lang.configure(text="Lang: JP")
+        else:
+            self.lang_mode = "EN"
+            self.btn_lang.configure(text="Lang: EN")
+            
+        # Update Checkboxes
+        for chk, en, jp in self.chk_widgets:
+            chk.configure(text=jp if self.lang_mode == "JP" else en)
+            
     def browse_folder(self):
         p = filedialog.askdirectory()
         if p:
@@ -270,6 +358,10 @@ class SFXReviewerApp(ctk.CTk):
         return None
 
     def on_select(self, event):
+        # Save previous before loading new
+        if self.current_file:
+            self.save_current_tags()
+            
         sel = self.tree.selection()
         if not sel: return
         item = self.tree.item(sel[0])
@@ -278,6 +370,38 @@ class SFXReviewerApp(ctk.CTk):
         
         if self.auto_advance:
              self.play_audio()
+
+    def save_current_tags(self):
+        if not self.current_file: return
+        fname = self.current_file
+        data = self.data_map.get(fname)
+        if not data: return
+        
+        row = data["row_obj"]
+        
+        # Gather Tags
+        active_tags = [k for k, v in self.tag_vars.items() if v.get()]
+        custom_txt = self.ent_custom_tags.get().strip()
+        if custom_txt:
+            # Avoid dupes
+            existing = set(active_tags)
+            for t in custom_txt.split(","):
+                ts = t.strip()
+                if ts and ts not in existing:
+                    active_tags.append(ts)
+            
+        final_tag_str = ", ".join(active_tags)
+        
+        # Check if changed (optimization)
+        row_idx = row[0].row
+        current_cell_val = self.ws.cell(row=row_idx, column=self.idx_tags+1).value
+        
+        if str(current_cell_val) != final_tag_str:
+            self.ws.cell(row=row_idx, column=self.idx_tags+1, value=final_tag_str)
+            try:
+                self.wb.save(self.excel_path)
+            except: pass # Silent fail on quick switch
+
 
     def load_file_details(self, fname):
         data = self.data_map.get(fname)
@@ -320,22 +444,45 @@ class SFXReviewerApp(ctk.CTk):
                 if customs:
                     self.ent_custom_tags.insert(0, ", ".join(customs))
         
-        # Params List
-        for w in self.fr_params.winfo_children(): w.destroy()
+        # Params Display Logic
+        show_mode = self.layout_config.get("params_show_mode", "full")
+        
         vals = [c.value for c in row]
         
-        for i, h in enumerate(self.headers):
-            # Skip non-params
-            if h in ("Score", "File Name", "Tags", "Version", "Date"): continue
-            # Also params might be None
-            if i >= len(vals): val = ""
-            else: val = vals[i]
+        if show_mode == "summary":
+            # Count params
+            total_p = 0
+            used_p = 0
+            params_detail = []
             
-            row_fr = ctk.CTkFrame(self.fr_params, fg_color="transparent")
-            row_fr.pack(fill="x", pady=1)
+            for i, h in enumerate(self.headers):
+                if h in ("Score", "File Name", "Tags", "Version", "Date"): continue
+                total_p += 1
+                if i < len(vals) and vals[i] not in (None, ""):
+                    used_p += 1
+                    # Optional: collect names of used params for tooltip or minimal display?
+                    # For now just count.
             
-            ctk.CTkLabel(row_fr, text=str(h)[:25], width=180, anchor="w", text_color="#aaaaaa").pack(side="left")
-            ctk.CTkLabel(row_fr, text=str(val), anchor="w", font=("Consolas", 12)).pack(side="left")
+            summary_text = f"Parameters Used: {used_p} / {total_p}"
+            if hasattr(self, "lbl_param_summary"):
+                self.lbl_param_summary.configure(text=summary_text)
+                
+        else:
+            # Full List
+            for w in self.fr_params.winfo_children(): w.destroy()
+            
+            for i, h in enumerate(self.headers):
+                # Skip non-params
+                if h in ("Score", "File Name", "Tags", "Version", "Date"): continue
+                # Also params might be None
+                if i >= len(vals): val = ""
+                else: val = vals[i]
+                
+                row_fr = ctk.CTkFrame(self.fr_params, fg_color="transparent")
+                row_fr.pack(fill="x", pady=1)
+                
+                ctk.CTkLabel(row_fr, text=str(h)[:25], width=180, anchor="w", text_color="#aaaaaa").pack(side="left")
+                ctk.CTkLabel(row_fr, text=str(val), anchor="w", font=("Consolas", 12)).pack(side="left")
 
     def apply_score_color(self, sc):
         if not sc:
@@ -372,13 +519,15 @@ class SFXReviewerApp(ctk.CTk):
         data = self.data_map[fname]
         row = data["row_obj"]
         
-        # 1. Gather Tags
-        active_tags = [k for k, v in self.tag_vars.items() if v.get()]
-        custom_txt = self.ent_custom_tags.get().strip()
-        if custom_txt:
-            active_tags.extend([t.strip() for t in custom_txt.split(",") if t.strip()])
-            
-        final_tag_str = ", ".join(active_tags)
+        # 1. Gather Tags (Already saved by save_current_tags implicitly if we call it, but let's be explicit)
+        self.save_current_tags() # Ensure tags are flushed
+        
+        # Re-fetch because save_current_tags writes to Excel but mainly we want to ensure latest state
+        # Note: save_current_tags saves tags. set_score saves score.
+        pass
+        
+        # 2. Update Excel Row (Score)
+
         
         # 2. Update Excel Row
         # Score
@@ -394,7 +543,8 @@ class SFXReviewerApp(ctk.CTk):
         row_idx = row[0].row # Get 1-based row index
         
         self.ws.cell(row=row_idx, column=self.idx_score+1, value=score) # Column is 1-based
-        self.ws.cell(row=row_idx, column=self.idx_tags+1, value=final_tag_str)
+        # Tags saved via save_current_tags above
+
         
         # 3. Save Excel
         try:
